@@ -16,12 +16,22 @@ variable "region" {
 
 variable "instance_type" {
   type    = string
-  default = "g5.xlarge"
+  default = "g4dn.xlarge"
+}
+
+variable "root_volume_size" {
+  type    = number
+  default = 120
 }
 
 variable "source_ami_filter_name" {
   type    = string
-  default = "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"
+  default = "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"
+}
+
+variable "ami_name_prefix" {
+  type    = string
+  default = "robotics-base"
 }
 
 variable "ssh_username" {
@@ -29,36 +39,44 @@ variable "ssh_username" {
   default = "ubuntu"
 }
 
+locals {
+  timestamp = regex_replace(timestamp(), "[- TZ:]", "")
+}
+
 source "amazon-ebs" "robotics_base" {
   region        = var.region
   instance_type = var.instance_type
   ssh_username  = var.ssh_username
 
-  ami_name        = "robotics-base-{{timestamp}}"
-  ami_description = "Base AMI for robotics simulation (Gazebo + core GPU stack)"
-
   source_ami_filter {
     filters = {
-      name                = var.source_ami_filter_name
+      name                = "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"
+      architecture        = "x86_64"
       root-device-type    = "ebs"
       virtualization-type = "hvm"
-      architecture        = "x86_64"
     }
-    owners      = ["099720109477"]
     most_recent = true
+    owners      = ["099720109477"] # Canonical
   }
+
+  ami_name        = "${var.ami_name_prefix}-${local.timestamp}"
+  ami_description = "Base AMI with NVIDIA driver, DCV, Docker, AWS CLI, ROS 2, Gazebo"
 
   launch_block_device_mappings {
     device_name           = "/dev/sda1"
-    volume_size           = 120
     volume_type           = "gp3"
+    volume_size           = var.root_volume_size
     delete_on_termination = true
   }
 
   tags = {
-    Project   = "robotics-aws"
-    ManagedBy = "packer"
-    Role      = "base-ami"
+    Name    = "${var.ami_name_prefix}-${local.timestamp}"
+    Role    = "${var.ami_name_prefix}"
+    BuiltBy = "packer"
+  }
+
+  run_tags = {
+    Name = "packer-build-robotics-base"
   }
 }
 
@@ -66,12 +84,60 @@ build {
   name    = "robotics-base"
   sources = ["source.amazon-ebs.robotics_base"]
 
-  provisioner "shell" { script = "scripts/setup-base.sh" }
-  provisioner "shell" { script = "scripts/install-driver.sh" }
-  provisioner "shell" { script = "scripts/install-dcv.sh" }
-  provisioner "shell" { script = "scripts/install-docker.sh" }
-  provisioner "shell" { script = "scripts/install-awscli.sh" }
-  provisioner "shell" { script = "scripts/install-ros-gazebo.sh" }
-  provisioner "shell" { script = "scripts/install-helper-scripts.sh" }
-  provisioner "shell" { script = "scripts/cleanup.sh" }
+  provisioner "shell" {
+    environment_vars = [
+      "DEBIAN_FRONTEND=noninteractive"
+    ]
+    script = "scripts/setup-base.sh"
+  }
+
+  provisioner "shell" {
+    environment_vars = [
+      "DEBIAN_FRONTEND=noninteractive"
+    ]
+    script = "scripts/install-driver.sh"
+  }
+
+  provisioner "shell" {
+    environment_vars = [
+      "DEBIAN_FRONTEND=noninteractive"
+    ]
+    script = "scripts/install-dcv.sh"
+  }
+
+  provisioner "shell" {
+    environment_vars = [
+      "DEBIAN_FRONTEND=noninteractive"
+    ]
+    script = "scripts/install-docker.sh"
+  }
+
+  provisioner "shell" {
+    environment_vars = [
+      "DEBIAN_FRONTEND=noninteractive"
+    ]
+    script = "scripts/install-awscli.sh"
+  }
+
+  provisioner "shell" {
+    environment_vars = [
+      "DEBIAN_FRONTEND=noninteractive",
+      "ROS_DISTRO=jazzy"
+    ]
+    script = "scripts/install-ros-gazebo.sh"
+  }
+
+  provisioner "shell" {
+    environment_vars = [
+      "DEBIAN_FRONTEND=noninteractive"
+    ]
+    script = "scripts/install-helper-scripts.sh"
+  }
+
+  provisioner "shell" {
+    environment_vars = [
+      "DEBIAN_FRONTEND=noninteractive"
+    ]
+    script = "scripts/cleanup.sh"
+  }
 }
