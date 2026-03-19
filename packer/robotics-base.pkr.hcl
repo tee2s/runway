@@ -49,6 +49,11 @@ variable "nvidia_driver_version" {
   default = ""
 }
 
+variable "dcv_version" {
+  type    = string
+  default = ""
+}
+
 variable "ros_distro" {
   type    = string
   default = "kilted"
@@ -56,6 +61,7 @@ variable "ros_distro" {
 
 locals {
   timestamp = regex_replace(timestamp(), "[- TZ:]", "")
+  ami_name  = format("%s-%s", var.ami_name_prefix, local.timestamp)
 }
 
 source "amazon-ebs" "robotics_base" {
@@ -65,7 +71,7 @@ source "amazon-ebs" "robotics_base" {
 
   source_ami_filter {
     filters = {
-      name                = "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"
+      name                = var.source_ami_filter_name
       architecture        = "x86_64"
       root-device-type    = "ebs"
       virtualization-type = "hvm"
@@ -74,7 +80,7 @@ source "amazon-ebs" "robotics_base" {
     owners      = ["099720109477"] # Canonical
   }
 
-  ami_name        = "${var.ami_name_prefix}-${local.timestamp}"
+  ami_name        = local.ami_name
   ami_description = "Base AMI with NVIDIA driver, DCV, Docker, AWS CLI, ROS 2, Gazebo"
 
   launch_block_device_mappings {
@@ -85,8 +91,8 @@ source "amazon-ebs" "robotics_base" {
   }
 
   tags = {
-    Name    = "${var.ami_name_prefix}-${local.timestamp}"
-    Role    = "${var.ami_name_prefix}"
+    Name    = local.ami_name
+    Role    = var.ami_name_prefix
     BuiltBy = "packer"
   }
 
@@ -109,14 +115,15 @@ build {
   provisioner "shell" {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive",
+      "UBUNTU_DISTRO_TAG=${var.ubuntu_distro_tag}",
       "NVIDIA_DRIVER_BRANCH=${var.nvidia_driver_branch}",
-      "NVIDIA_DRIVER_VERSION=${var.nvidia_driver_version}",
+      "NVIDIA_DRIVER_VERSION=${var.nvidia_driver_version}"
     ]
     script = "scripts/install_nvidia_driver.sh"
   }
 
   provisioner "shell" {
-    inline = ["sudo reboot"]
+    inline              = ["sudo reboot"]
     expect_disconnect   = true
     start_retry_timeout = "10m"
   }
@@ -125,14 +132,16 @@ build {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive",
       "NVIDIA_DRIVER_BRANCH=${var.nvidia_driver_branch}",
-      "NVIDIA_DRIVER_VERSION=${var.nvidia_driver_version}",
+      "NVIDIA_DRIVER_VERSION=${var.nvidia_driver_version}"
     ]
     script = "scripts/post_driver_install.sh"
   }
 
   provisioner "shell" {
     environment_vars = [
-      "DEBIAN_FRONTEND=noninteractive"
+      "DEBIAN_FRONTEND=noninteractive",
+      "UBUNTU_DISTRO_TAG=${var.ubuntu_distro_tag}",
+      "DCV_VERSION=${var.dcv_version}
     ]
     script = "scripts/install-dcv.sh"
   }
