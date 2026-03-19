@@ -19,21 +19,8 @@ export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
 NVIDIA_DRIVER_BRANCH="${NVIDIA_DRIVER_BRANCH:-}"
 NVIDIA_DRIVER_VERSION="${NVIDIA_DRIVER_VERSION:-}"
 
-UBUNTU_VERSION="$(. /etc/os-release && echo "${VERSION_ID}")"
+UBUNTU_DISTRO_TAG="${UBUNTU_DISTRO_TAG:?UBUNTU_DISTRO_TAG must be set}"
 ARCH="$(dpkg --print-architecture)"
-
-case "${UBUNTU_VERSION}" in
-  "24.04")
-    DISTRO="ubuntu2404"
-    ;;
-  "22.04")
-    DISTRO="ubuntu2204"
-    ;;
-  *)
-    echo "[install-driver] Unsupported Ubuntu version: ${UBUNTU_VERSION}"
-    exit 1
-    ;;
-esac
 
 if [[ "${ARCH}" != "amd64" && "${ARCH}" != "x86_64" ]]; then
   echo "[install-driver] This script currently supports Ubuntu amd64 only."
