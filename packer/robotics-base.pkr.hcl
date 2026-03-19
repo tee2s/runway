@@ -39,6 +39,16 @@ variable "ssh_username" {
   default = "ubuntu"
 }
 
+variable "nvidia_driver_branch" {
+  type    = string
+  default = ""
+}
+
+variable "nvidia_driver_version" {
+  type    = string
+  default = ""
+}
+
 variable "ros_distro" {
   type    = string
   default = "kilted"
@@ -98,9 +108,26 @@ build {
 
   provisioner "shell" {
     environment_vars = [
-      "DEBIAN_FRONTEND=noninteractive"
+      "DEBIAN_FRONTEND=noninteractive",
+      "NVIDIA_DRIVER_BRANCH=${var.nvidia_driver_branch}",
+      "NVIDIA_DRIVER_VERSION=${var.nvidia_driver_version}",
     ]
-    script = "scripts/install-driver.sh"
+    script = "scripts/install_nvidia_driver.sh"
+  }
+
+  provisioner "shell" {
+    inline = ["sudo reboot"]
+    expect_disconnect   = true
+    start_retry_timeout = "10m"
+  }
+
+  provisioner "shell" {
+    environment_vars = [
+      "DEBIAN_FRONTEND=noninteractive",
+      "NVIDIA_DRIVER_BRANCH=${var.nvidia_driver_branch}",
+      "NVIDIA_DRIVER_VERSION=${var.nvidia_driver_version}",
+    ]
+    script = "scripts/post_driver_install.sh"
   }
 
   provisioner "shell" {

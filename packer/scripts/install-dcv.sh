@@ -1,4 +1,6 @@
-#!/usr/bin/env bash
+#!/usr/bin/env bash 
+#maybe install xorg xfce4 xfce4-goodies
+
 set -euxo pipefail
 
 DCV_VERSION="2024.0.18131"
