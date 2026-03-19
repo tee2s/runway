@@ -1,17 +1,54 @@
 #!/usr/bin/env bash
-set -euxo pipefail
+set -euo pipefail
 
-export DEBIAN_FRONTEND=noninteractive
+export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
 
-sudo apt-get update
-sudo apt-get install -y   build-essential curl wget unzip gnupg lsb-release ca-certificates   software-properties-common jq git xorg xfce4 xfce4-goodies net-tools   python3 python3-pip awscli
+echo "[setup-base] Updating apt metadata..."
+sudo apt-get update 
 
-xorg xfce4 xfce4-goodies python3 python3-pip?
+echo "[setup-base] Upgrading base packages..."
+sudo apt-get upgrade -y
 
-if ! dpkg -s amazon-ssm-agent >/dev/null 2>&1; then
-  sudo snap install amazon-ssm-agent --classic
-fi
-sudo systemctl enable --now snap.amazon-ssm-agent.amazon-ssm-agent.service || true
+echo "[setup-base] Installing common utilities..."
+sudo apt-get install -y \
+  build-essential \
+  ca-certificates \
+  curl \
+  git \
+  gnupg \
+  htop \
+  jq \
+  lsb-release \
+  net-tools \
+  software-properties-common \
+  tmux \
+  unzip \
+  vim \
+  wget \
+  xz-utils \
+  python3 \
+  python3-pip \
+  python3-venv
 
-sudo mkdir -p /workspace/project /mnt/assets /mnt/isaac /opt/robotics/bin
-sudo chown -R ubuntu:ubuntu /workspace/project /mnt/assets /mnt/isaac
+echo "[setup-base] Creating standard directories..."
+sudo mkdir -p \
+  /opt/robotics/bin \
+  /workspace/project \
+  /mnt/assets \
+  /mnt/isaac
+
+echo "[setup-base] Setting ownership and permissions..."
+sudo chown -R root:root /opt/robotics /mnt/isaac
+sudo chmod 755 /opt/robotics /opt/robotics/bin /mnt/isaac
+
+sudo chown -R ubuntu:ubuntu /workspace/project /mnt/assets
+sudo chmod 755 /workspace/project /mnt/assets
+
+
+echo "[setup-base] Enabling useful kernel modules..."
+cat <<'EOF' | sudo tee /etc/modules-load.d/robotics.conf >/dev/null
+overlay
+br_netfilter
+EOF
+
+echo "[setup-base] Base setup complete."
