@@ -119,7 +119,7 @@ build {
       "NVIDIA_DRIVER_BRANCH=${var.nvidia_driver_branch}",
       "NVIDIA_DRIVER_VERSION=${var.nvidia_driver_version}"
     ]
-    script = "scripts/install_nvidia_driver.sh"
+    script = "scripts/02-nvidia/01-install_nvidia_driver.sh"
   }
 
   provisioner "shell" {
@@ -129,35 +129,71 @@ build {
   }
 
   provisioner "shell" {
+    pause_before = "30s"
+    inline       = ["echo Desktop reboot complete"]
+  }
+
+  provisioner "shell" {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive",
       "NVIDIA_DRIVER_BRANCH=${var.nvidia_driver_branch}",
       "NVIDIA_DRIVER_VERSION=${var.nvidia_driver_version}"
     ]
-    script = "scripts/post_driver_install.sh"
+    script = "scripts/02-nvidia/02-validate-driver.sh"
+  }
+
+   provisioner "shell" {
+    environment_vars = [
+      "DEBIAN_FRONTEND=noninteractive"
+    ]
+    script = "scripts/03-dcv/01-install-desktop.sh"
+  }
+
+  provisioner "shell" {
+    expect_disconnect = true
+    inline            = ["sudo reboot"]
+  }
+
+  provisioner "shell" {
+    pause_before = "30s"
+    inline       = ["echo Desktop reboot complete"]
+  }
+
+  provisioner "shell" {
+    environment_vars = [
+      "DEBIAN_FRONTEND=noninteractive"
+    ]
+    script = "scripts/03-dcv/02-configure-display.sh"
   }
 
   provisioner "shell" {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive",
       "UBUNTU_DISTRO_TAG=${var.ubuntu_distro_tag}",
-      "DCV_VERSION=${var.dcv_version}
+      "DCV_VERSION=${var.dcv_version}"
     ]
-    script = "scripts/install-dcv.sh"
+    script = "scripts/03-dcv/03-install-dcv.sh"
   }
 
   provisioner "shell" {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive"
     ]
-    script = "scripts/install-docker.sh"
+    script = "scripts/03-dcv/04-validate-dcv.sh"
   }
 
   provisioner "shell" {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive"
     ]
-    script = "scripts/install-awscli.sh"
+    script = "scripts/04-install-docker.sh"
+  }
+
+  provisioner "shell" {
+    environment_vars = [
+      "DEBIAN_FRONTEND=noninteractive"
+    ]
+    script = "scripts/05-install-awscli.sh"
   }
 
   provisioner "shell" {
@@ -165,20 +201,20 @@ build {
       "DEBIAN_FRONTEND=noninteractive",
       "ROS_DISTRO=${var.ros_distro}"
     ]
-    script = "scripts/install-ros-gazebo.sh"
+    script = "scripts/06-install-ros-gazebo.sh"
   }
 
   provisioner "shell" {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive"
     ]
-    script = "scripts/install-helper-scripts.sh"
+    script = "scripts/07-install-helper-scripts.sh"
   }
 
   provisioner "shell" {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive"
     ]
-    script = "scripts/cleanup.sh"
+    script = "scripts/08-cleanup.sh"
   }
 }

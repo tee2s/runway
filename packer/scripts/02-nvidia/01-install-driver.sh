@@ -67,4 +67,4 @@ echo "[install-driver] Installing NVIDIA driver via nvidia-open..."
 sudo apt-get install -y nvidia-open
 
 echo "[install-driver] Driver installation complete."
-echo "[install-driver] System will reboot."
+echo "[install-driver] Reboot required before continuing."
