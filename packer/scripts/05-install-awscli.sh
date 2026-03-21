@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+#!/usr/bin/env bash
+# Installs the AWS CLI v2 on Ubuntu from the official bundled installer and verifies the installation.
+# This follows the official AWS CLI v2 Linux installation guide:
+# https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+
 set -euo pipefail
 
 TMP_DIR="$(mktemp -d)"
