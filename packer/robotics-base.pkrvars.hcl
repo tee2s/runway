@@ -14,4 +14,7 @@ nvidia_driver_version  = ""
 # Leave empty to install the default/latest DCV version defined by the install script.
 dcv_version = ""
 
+# Leave empty to install the latest version of the nvidia container toolkit
+nvidia_container_toolkit_version = ""
+
 ros_distro             = "kilted"

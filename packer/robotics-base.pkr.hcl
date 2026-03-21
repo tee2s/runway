@@ -54,6 +54,11 @@ variable "dcv_version" {
   default = ""
 }
 
+variable "nvidia_container_toolkit_version" {
+  type    = string
+  default = ""
+}
+
 variable "ros_distro" {
   type    = string
   default = "kilted"
@@ -184,7 +189,8 @@ build {
 
   provisioner "shell" {
     environment_vars = [
-      "DEBIAN_FRONTEND=noninteractive"
+      "DEBIAN_FRONTEND=noninteractive",
+      "NVIDIA_CONTAINER_TOOLKIT_VERSION=${var.nvidia_container_toolkit_version}"
     ]
     script = "scripts/04-install-docker.sh"
   }
