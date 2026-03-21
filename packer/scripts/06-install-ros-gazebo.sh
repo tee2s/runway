@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-#!/usr/bin/env bash
 # Installs ROS 2, rosdep/dev tools, and the default Gazebo pairing for the selected ROS distro on Ubuntu.
 # This follows the official ROS 2 Ubuntu installation guide and the official Gazebo + ROS installation guide:
 # https://docs.ros.org/en/kilted/Installation/Ubuntu-Install-Debs.html

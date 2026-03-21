@@ -29,6 +29,11 @@ variable "source_ami_filter_name" {
   default = "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"
 }
 
+variable "ubuntu_distro_tag" {
+  type    = string
+  default = "ubuntu2404"
+}
+
 variable "ami_name_prefix" {
   type    = string
   default = "robotics-base"
@@ -114,7 +119,7 @@ build {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive"
     ]
-    script = "scripts/setup-base.sh"
+    script = "scripts/01-setup-base.sh"
   }
 
   provisioner "shell" {
@@ -124,7 +129,7 @@ build {
       "NVIDIA_DRIVER_BRANCH=${var.nvidia_driver_branch}",
       "NVIDIA_DRIVER_VERSION=${var.nvidia_driver_version}"
     ]
-    script = "scripts/02-nvidia/01-install_nvidia_driver.sh"
+    script = "scripts/02-nvidia/01-install-driver.sh"
   }
 
   provisioner "shell" {
@@ -184,7 +189,7 @@ build {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive"
     ]
-    script = "scripts/03-dcv/04-validate-dcv.sh"
+    script = "scripts/03-dcv/04-validate_dcv.sh"
   }
 
   provisioner "shell" {
@@ -214,7 +219,7 @@ build {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive"
     ]
-    script = "scripts/07-install-helper-scripts.sh"
+    script = "scripts/07-install-distrobox.sh"
   }
 
   provisioner "shell" {

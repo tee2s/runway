@@ -28,7 +28,7 @@ if [[ "${ARCH}" != "amd64" && "${ARCH}" != "x86_64" ]]; then
 fi
 
 CUDA_KEYRING_DEB="cuda-keyring_1.1-1_all.deb"
-CUDA_KEYRING_URL="https://developer.download.nvidia.com/compute/cuda/repos/${DISTRO}/x86_64/${CUDA_KEYRING_DEB}"
+CUDA_KEYRING_URL="https://developer.download.nvidia.com/compute/cuda/repos/${UBUNTU_DISTRO_TAG}/x86_64/${CUDA_KEYRING_DEB}"
 
 echo "[install-driver] Installing prerequisites..."
 sudo apt-get update
