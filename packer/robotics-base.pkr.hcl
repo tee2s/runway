@@ -152,7 +152,7 @@ build {
     script = "scripts/02-nvidia/02-validate-driver.sh"
   }
 
-   provisioner "shell" {
+  provisioner "shell" {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive"
     ]
