@@ -23,7 +23,7 @@ else
 fi
 
 TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+echo "TMP_DIR=$TMP_DIR"
 
 echo "[install-dcv] Downloading NICE DCV from: ${DCV_DEB_URL}"
 wget -O "${TMP_DIR}/nice-dcv.tgz" "${DCV_DEB_URL}"
@@ -31,12 +31,15 @@ wget -O "${TMP_DIR}/nice-dcv.tgz" "${DCV_DEB_URL}"
 echo "[install-dcv] Extracting package..."
 tar -xzf "${TMP_DIR}/nice-dcv.tgz" -C "${TMP_DIR}"
 
+DCV_DIR="$(echo "${TMP_DIR}"/nice-dcv-*)"
+
 echo "[install-dcv] Installing NICE DCV server packages..."
 sudo apt-get update
 sudo apt-get install -y \
-  "${TMP_DIR}"/nice-dcv-server_*.deb \
-  "${TMP_DIR}"/nice-dcv-web-viewer_*.deb 
+  "${DCV_DIR}"/nice-dcv-server_*.deb \
+  "${DCV_DIR}"/nice-dcv-web-viewer_*.deb
 
+  
 echo "[install-dcv] Adding dcv user to video group..."
 sudo usermod -aG video dcv
 

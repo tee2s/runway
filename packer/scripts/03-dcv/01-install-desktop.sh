@@ -16,7 +16,8 @@ sudo apt-get install -y \
   ubuntu-desktop \
   gdm3 \
   xorg \
-  mesa-utils
+  mesa-utils \
+  nvidia-xconfig
 
 echo "[install-desktop] Ensuring GDM3 is the default display manager..."
 if [[ ! -f /etc/X11/default-display-manager ]] || ! grep -qx '/usr/sbin/gdm3' /etc/X11/default-display-manager; then

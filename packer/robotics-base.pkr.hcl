@@ -46,7 +46,7 @@ variable "ssh_username" {
 
 variable "nvidia_driver_branch" {
   type    = string
-  default = ""
+  default = "580"
 }
 
 variable "nvidia_driver_version" {
