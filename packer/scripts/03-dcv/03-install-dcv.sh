@@ -39,7 +39,6 @@ sudo apt-get install -y \
   "${DCV_DIR}"/nice-dcv-server_*.deb \
   "${DCV_DIR}"/nice-dcv-web-viewer_*.deb
 
-  
 echo "[install-dcv] Adding dcv user to video group..."
 sudo usermod -aG video dcv
 

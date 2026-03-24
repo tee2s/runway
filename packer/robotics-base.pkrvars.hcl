@@ -13,7 +13,7 @@ ssh_username           = "ubuntu"
 # It is recommended to explicitly choose a tested production branch/version:
 # https://www.nvidia.com/en-us/drivers/
 nvidia_driver_branch  = "580"
-nvidia_driver_version = "" 
+nvidia_driver_version = ""
 
 # Leave empty to install the default/latest DCV version defined by the install script.
 dcv_version = ""
