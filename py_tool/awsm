@@ -1,0 +1,440 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import stat
+import subprocess
+import sys
+from pathlib import Path
+
+
+def run_command(cmd):
+    try:
+        result = subprocess.run(cmd)
+    except FileNotFoundError as e:
+        raise RuntimeError(f"failed to run command: {cmd[0]}") from e
+    sys.exit(result.returncode)
+
+
+def capture_command(cmd):
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+    except FileNotFoundError as e:
+        raise RuntimeError(f"failed to run command: {cmd[0]}") from e
+
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        raise RuntimeError(f"command failed: {stderr}")
+
+    return (result.stdout or "").strip()
+
+
+def build_aws_base_cmd(profile=None, region=None):
+    cmd = ["aws"]
+    if profile:
+        cmd += ["--profile", profile]
+    if region:
+        cmd += ["--region", region]
+    return cmd
+
+
+def run_aws(profile, region, aws_args):
+    cmd = build_aws_base_cmd(profile, region) + aws_args
+    run_command(cmd)
+
+
+def get_public_ip_for_name(profile, region, name):
+    cmd = build_aws_base_cmd(profile, region) + [
+        "ec2",
+        "describe-instances",
+        "--filters",
+        f"Name=tag:Name,Values={name}",
+        "Name=instance-state-name,Values=running",
+        "--query",
+        "Reservations[].Instances[].PublicIpAddress | [0]",
+        "--output",
+        "text",
+    ]
+
+    ip = capture_command(cmd)
+    if not ip or ip == "None":
+        raise RuntimeError(f"no running instance found with tag Name={name}")
+    return ip
+
+
+def ssh_config_path():
+    home = os.environ.get("HOME")
+    if not home:
+        raise RuntimeError("HOME is not set")
+    return Path(home) / ".ssh" / "config"
+
+
+def ensure_parent_dir(path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def set_file_permissions_600(path):
+    if os.name != "nt":
+        path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+
+
+def parse_host_line(line):
+    trimmed = line.strip()
+    if not trimmed or trimmed.startswith("#"):
+        return None
+
+    parts = trimmed.split()
+    if not parts:
+        return None
+
+    if parts[0].lower() != "host":
+        return None
+
+    return parts[1:]
+
+
+def find_host_block(lines, alias):
+    start = None
+
+    for i, line in enumerate(lines):
+        patterns = parse_host_line(line)
+        if patterns and alias in patterns:
+            start = i
+            break
+
+    if start is None:
+        return None
+
+    end = len(lines)
+    for i in range(start + 1, len(lines)):
+        if parse_host_line(lines[i]) is not None:
+            end = i
+            break
+
+    return start, end
+
+
+def patch_host_block(block_lines, hostname, user=None, identity_file=None):
+    found_hostname = False
+    found_user = False
+    found_identity_file = False
+    found_identities_only = False
+
+    for i in range(1, len(block_lines)):
+        trimmed = block_lines[i].strip()
+        if not trimmed or trimmed.startswith("#"):
+            continue
+
+        parts = trimmed.split()
+        if not parts:
+            continue
+
+        key = parts[0].lower()
+
+        if key == "hostname":
+            block_lines[i] = f"  HostName {hostname}"
+            found_hostname = True
+
+        elif key == "user":
+            if user is not None:
+                block_lines[i] = f"  User {user}"
+                found_user = True
+
+        elif key == "identityfile":
+            if identity_file is not None:
+                block_lines[i] = f"  IdentityFile {identity_file}"
+                found_identity_file = True
+
+        elif key == "identitiesonly":
+            if identity_file is not None:
+                block_lines[i] = "  IdentitiesOnly yes"
+                found_identities_only = True
+
+    if not found_hostname:
+        block_lines.append(f"  HostName {hostname}")
+
+    if user is not None and not found_user:
+        block_lines.append(f"  User {user}")
+
+    if identity_file is not None:
+        if not found_identity_file:
+            block_lines.append(f"  IdentityFile {identity_file}")
+        if not found_identities_only:
+            block_lines.append("  IdentitiesOnly yes")
+
+
+def update_ssh_config(content, alias, hostname, user=None, identity_file=None):
+    lines = content.splitlines() if content else []
+
+    block = find_host_block(lines, alias)
+
+    if block is not None:
+        start, end = block
+        block_lines = lines[start:end]
+        patch_host_block(block_lines, hostname, user=user, identity_file=identity_file)
+        lines[start:end] = block_lines
+    else:
+        if lines and lines[-1].strip():
+            lines.append("")
+
+        new_block = [
+            f"Host {alias}",
+            f"  HostName {hostname}",
+        ]
+
+        if user is not None:
+            new_block.append(f"  User {user}")
+
+        if identity_file is not None:
+            new_block.append(f"  IdentityFile {identity_file}")
+            new_block.append("  IdentitiesOnly yes")
+
+        lines.extend(new_block)
+
+    return "\n".join(lines) + "\n"
+
+
+def cmd_ssh_config(profile, region, alias, name, key=None, user=None):
+    ip = get_public_ip_for_name(profile, region, name)
+    config_path = ssh_config_path()
+
+    ensure_parent_dir(config_path)
+    if not config_path.exists():
+        config_path.write_text("", encoding="utf-8")
+        set_file_permissions_600(config_path)
+
+    content = config_path.read_text(encoding="utf-8")
+    updated = update_ssh_config(
+        content,
+        alias,
+        ip,
+        user=user,
+        identity_file=key,
+    )
+
+    if updated != content:
+        config_path.write_text(updated, encoding="utf-8")
+        set_file_permissions_600(config_path)
+
+    print(f"Updated {config_path}: Host {alias} -> {ip}")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="aws-tool",
+        description="Small AWS convenience CLI built on top of the AWS CLI",
+    )
+    parser.add_argument("--profile")
+    parser.add_argument("--region")
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    subparsers.add_parser("ips", help="List public IPs and DNS names of EC2 instances")
+    subparsers.add_parser("gquota", help="Show EC2 G/VT service quotas")
+    subparsers.add_parser("amis", help="List AMIs owned by your account")
+    subparsers.add_parser("inst", help="List EC2 instances")
+    subparsers.add_parser("vol", help="List EBS volumes")
+    subparsers.add_parser("snap", help="List EBS snapshots")
+    subparsers.add_parser("keys", help="List EC2 key pairs")
+    subparsers.add_parser("sg", help="List security groups")
+    subparsers.add_parser("roles", help="List IAM roles")
+
+    ssh_config_parser = subparsers.add_parser(
+        "ssh-config",
+        help="Create or update an SSH config entry for an instance",
+        description="Find a running EC2 instance by its Name tag and create or update a Host entry in ~/.ssh/config."
+    )
+    ssh_config_parser.add_argument("alias", help="SSH alias to create or update")
+    ssh_config_parser.add_argument(
+        "name",
+        nargs="?",
+        help="Value of the EC2 Name tag (defaults to alias when omitted)",
+    )
+    ssh_config_parser.add_argument("--key", help="Path to SSH private key")
+    ssh_config_parser.add_argument("--user", help="SSH username")
+
+    args = parser.parse_args()
+
+    try:
+        if args.command == "ips":
+            run_aws(
+                args.profile,
+                args.region,
+                [
+                    "ec2",
+                    "describe-instances",
+                    "--filters",
+                    "Name=instance-state-name,Values=pending,running,stopping,stopped",
+                    "--query",
+                    "Reservations[].Instances[].{InstanceId:InstanceId,PublicIp:PublicIpAddress,PublicDns:PublicDnsName,State:State.Name,LaunchTime:LaunchTime}",
+                    "--output",
+                    "table",
+                ],
+            )
+
+        elif args.command == "gquota":
+            region = args.region or "us-east-1"
+            run_aws(
+                args.profile,
+                region,
+                [
+                    "service-quotas",
+                    "list-service-quotas",
+                    "--service-code",
+                    "ec2",
+                    "--query",
+                    "Quotas[?contains(QuotaName, 'G and VT')].[QuotaName,Value]",
+                    "--output",
+                    "table",
+                ],
+            )
+
+        elif args.command == "amis":
+            run_aws(
+                args.profile,
+                args.region,
+                [
+                    "ec2",
+                    "describe-images",
+                    "--owners",
+                    "self",
+                    "--query",
+                    "reverse(sort_by(Images,&CreationDate))[].{ImageId:ImageId,Name:Name,State:State,CreationDate:CreationDate}",
+                    "--output",
+                    "table",
+                ],
+            )
+
+        elif args.command == "inst":
+            cmd = build_aws_base_cmd(args.profile, args.region) + [
+                "ec2",
+                "describe-instances",
+                "--query",
+                "Reservations[].Instances[].{InstanceId:InstanceId,State:State.Name,Type:InstanceType,PublicIP:PublicIpAddress,PrivateIP:PrivateIpAddress,Name:Tags[?Key==`Name`]|[0].Value}",
+                "--output",
+                "json",
+            ]
+            output = capture_command(cmd)
+            if output in ("[]", "", "null"):
+                print("No EC2 instances found.")
+            else:
+                run_aws(
+                    args.profile,
+                    args.region,
+                    [
+                        "ec2",
+                        "describe-instances",
+                        "--query",
+                        "Reservations[].Instances[].{InstanceId:InstanceId,State:State.Name,Type:InstanceType,PublicIP:PublicIpAddress,PrivateIP:PrivateIpAddress,Name:Tags[?Key==`Name`]|[0].Value}",
+                        "--output",
+                        "table",
+                    ],
+                )
+
+        elif args.command == "vol":
+            cmd = build_aws_base_cmd(args.profile, args.region) + [
+                "ec2",
+                "describe-volumes",
+                "--query",
+                "Volumes[].{VolumeId:VolumeId,State:State,SizeGiB:Size,Type:VolumeType,AZ:AvailabilityZone,AttachedInstance:Attachments[0].InstanceId}",
+                "--output",
+                "json",
+            ]
+            output = capture_command(cmd)
+            if output in ("[]", "", "null"):
+                print("No EBS volumes found.")
+            else:
+                run_aws(
+                    args.profile,
+                    args.region,
+                    [
+                        "ec2",
+                        "describe-volumes",
+                        "--query",
+                        "Volumes[].{VolumeId:VolumeId,State:State,SizeGiB:Size,Type:VolumeType,AZ:AvailabilityZone,AttachedInstance:Attachments[0].InstanceId}",
+                        "--output",
+                        "table",
+                    ],
+                )
+        elif args.command == "snap":
+            run_aws(
+                args.profile,
+                args.region,
+                [
+                    "ec2",
+                    "describe-snapshots",
+                    "--owner-ids",
+                    "self",
+                    "--query",
+                    "reverse(sort_by(Snapshots,&StartTime))[].{SnapshotId:SnapshotId,State:State,StartTime:StartTime,VolumeSizeGiB:VolumeSize,FullSnapshotSizeBytes:FullSnapshotSizeInBytes,Description:Description}",
+                    "--output",
+                    "table",
+                ],
+            )
+
+        elif args.command == "keys":
+            run_aws(
+                args.profile,
+                args.region,
+                [
+                    "ec2",
+                    "describe-key-pairs",
+                    "--query",
+                    "KeyPairs[].{KeyName:KeyName,KeyPairId:KeyPairId,KeyType:KeyType,Fingerprint:KeyFingerprint}",
+                    "--output",
+                    "table",
+                ],
+            )
+
+        elif args.command == "sg":
+            run_aws(
+                args.profile,
+                args.region,
+                [
+                    "ec2",
+                    "describe-security-groups",
+                    "--query",
+                    "SecurityGroups[].{GroupId:GroupId,GroupName:GroupName,VpcId:VpcId,Description:Description}",
+                    "--output",
+                    "table",
+                ],
+            )
+
+        elif args.command == "roles":
+            run_aws(
+                args.profile,
+                args.region,
+                [
+                    "iam",
+                    "list-roles",
+                    "--query",
+                    "Roles[].{RoleName:RoleName,Created:CreateDate}",
+                    "--output",
+                    "table",
+                ],
+            )
+
+        elif args.command == "ssh-config":
+            instance_name = args.name or args.alias
+            cmd_ssh_config(
+                args.profile,
+                args.region,
+                args.alias,
+                instance_name,
+                key=args.key,
+                user=args.user,
+            )
+
+        else:
+            parser.error("unknown command")
+
+    except RuntimeError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print("\nInterrupted.", file=sys.stderr)
+        sys.exit(130)
+
+
+if __name__ == "__main__":
+    main()
