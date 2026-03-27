@@ -1,0 +1,693 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import subprocess
+import sys
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+
+PRODUCT_DESCRIPTION = "Linux/UNIX (Amazon VPC)"
+DEFAULT_REGION = "us-east-1"
+PRICING_API_REGION = "us-east-1"
+CACHE_DIR = Path.home() / ".cache" / "awsm"
+EC2_SERVICE_CODE = "ec2"
+PRICING_SERVICE_CODE = "AmazonEC2"
+PRICE_LIST_CURRENCY = "USD"
+SPOT_G_VT_QUOTA_NAME = "All G and VT Spot Instance Requests"
+INSTANCE_CACHE_VERSION = 2
+
+
+def run_aws(cmd):
+    try:
+        result = subprocess.run(
+            cmd,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        return json.loads(result.stdout)
+    except subprocess.CalledProcessError as e:
+        print("AWS CLI command failed:", file=sys.stderr)
+        if e.stderr:
+            print(e.stderr.strip(), file=sys.stderr)
+        sys.exit(1)
+    except json.JSONDecodeError:
+        print("Failed to parse AWS CLI JSON output.", file=sys.stderr)
+        sys.exit(1)
+
+
+def ensure_cache_dir():
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def instance_cache_path(region: str) -> Path:
+    return CACHE_DIR / f"instance-types-{region}.json"
+
+
+
+def quota_cache_path(region: str) -> Path:
+    return CACHE_DIR / f"quota-{region}.json"
+
+
+def load_json(path: Path):
+    if not path.exists():
+        return None
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def save_json(path: Path, payload):
+    ensure_cache_dir()
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, sort_keys=False)
+
+
+def human_memory_gib(size_mib: int) -> str:
+    return f"{size_mib / 1024:.1f}"
+
+
+def human_ts_local(ts: str) -> str:
+    dt_utc = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    return dt_utc.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+
+
+def format_gpu_count(value):
+    if value is None:
+        return "N/A"
+    if isinstance(value, str):
+        return value
+    if abs(value - round(value)) < 1e-9:
+        return str(int(round(value)))
+    return f"{value:.3f}".rstrip("0").rstrip(".")
+
+
+def normalize_gpu_type(name: str) -> str:
+    if not name:
+        return "N/A"
+    upper = name.upper()
+    if "RTX PRO" in upper and "6000" in upper:
+        return "RTX PRO 6000"
+    return name
+
+
+def get_nvidia_gpu_info(instance_type_info: dict):
+    gpu_info = instance_type_info.get("GpuInfo", {})
+    gpus = gpu_info.get("Gpus", [])
+    nvidia_gpus = [g for g in gpus if g.get("Manufacturer") == "NVIDIA"]
+    if not nvidia_gpus:
+        return {
+            "gpu_type": "N/A",
+            "gpus": "N/A",
+            "vram_gb": "N/A",
+        }
+
+    main_gpu = nvidia_gpus[0]
+    count = main_gpu.get("Count")
+    partition_size = main_gpu.get("GpuPartitionSize")
+    logical_gpu_count = main_gpu.get("LogicalGpuCount")
+    memory_info = main_gpu.get("MemoryInfo", {})
+
+    gpu_name = normalize_gpu_type(main_gpu.get("Name", "N/A"))
+
+    total_gpu_memory_mib = memory_info.get("SizeInMiB")
+    if total_gpu_memory_mib is None:
+        total_gpu_memory_mib = gpu_info.get("TotalGpuMemoryInMiB")
+
+    gpu_display = None
+    if partition_size is not None:
+        try:
+            gpu_display = format_gpu_count(float(partition_size))
+        except (TypeError, ValueError):
+            gpu_display = str(partition_size)
+    elif logical_gpu_count is not None:
+        try:
+            gpu_display = format_gpu_count(float(logical_gpu_count))
+        except (TypeError, ValueError):
+            gpu_display = str(logical_gpu_count)
+    elif count is not None:
+        try:
+            gpu_display = format_gpu_count(float(count))
+        except (TypeError, ValueError):
+            gpu_display = str(count)
+    else:
+        gpu_display = "N/A"
+
+    vram_gb = "N/A"
+    if total_gpu_memory_mib is not None:
+        divisor = None
+        if partition_size is not None:
+            divisor = 1
+        elif logical_gpu_count and logical_gpu_count > 0:
+            divisor = logical_gpu_count
+        elif count and count > 0:
+            divisor = count
+        if divisor:
+            try:
+                vram_gb = f"{float(total_gpu_memory_mib) / float(divisor) * 1.048576 / 1000:.1f}"
+            except (TypeError, ValueError, ZeroDivisionError):
+                vram_gb = "N/A"
+        else:
+            try:
+                vram_gb = f"{float(total_gpu_memory_mib) * 1.048576 / 1000:.1f}"
+            except (TypeError, ValueError):
+                vram_gb = "N/A"
+
+    return {
+        "gpu_type": gpu_name,
+        "gpus": gpu_display,
+        "vram_gb": vram_gb,
+    }
+
+
+def price_list_effective_date_utc() -> str:
+    # Ask for a recent effective date, but not "now", so there is reliably a published list to return.
+    return (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def fetch_price_list_arn(region: str, verbose: bool = False) -> str:
+    if verbose:
+        print(f"Discovering regional EC2 price list for {region}...", flush=True)
+
+    data = run_aws([
+        "aws", "pricing", "list-price-lists",
+        "--region", PRICING_API_REGION,
+        "--service-code", PRICING_SERVICE_CODE,
+        "--currency-code", PRICE_LIST_CURRENCY,
+        "--region-code", region,
+        "--effective-date", price_list_effective_date_utc(),
+        "--output", "json",
+    ])
+
+    price_lists = data.get("PriceLists", [])
+    if not price_lists:
+        print(f"No EC2 price list found for region {region}.", file=sys.stderr)
+        sys.exit(1)
+
+    price_lists.sort(key=lambda x: x.get("EffectiveDate", ""), reverse=True)
+    return price_lists[0]["PriceListArn"]
+
+
+def fetch_price_list_file_url(price_list_arn: str, verbose: bool = False) -> str:
+    if verbose:
+        print("Getting downloadable regional EC2 price list URL...", flush=True)
+
+    data = run_aws([
+        "aws", "pricing", "get-price-list-file-url",
+        "--region", PRICING_API_REGION,
+        "--price-list-arn", price_list_arn,
+        "--file-format", "json",
+        "--output", "json",
+    ])
+
+    url = data.get("Url")
+    if not url:
+        print("Could not get price list file URL from AWS.", file=sys.stderr)
+        sys.exit(1)
+    return url
+
+
+def download_price_list_json(url: str, verbose: bool = False) -> dict:
+    if verbose:
+        print("Downloading regional EC2 price list...", flush=True)
+
+    try:
+        with urllib.request.urlopen(url) as resp:
+            return json.load(resp)
+    except Exception as e:
+        print(f"Failed to download EC2 price list file: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def extract_usd_price_from_term(term: dict):
+    price_dimensions = term.get("priceDimensions", {})
+    for dim in price_dimensions.values():
+        usd = dim.get("pricePerUnit", {}).get("USD")
+        if not usd:
+            continue
+        try:
+            return float(usd)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def build_ondemand_price_map_from_catalog(price_list_doc: dict, instance_types: set[str]):
+    products = price_list_doc.get("products", {})
+    ondemand_terms = price_list_doc.get("terms", {}).get("OnDemand", {})
+    prices = {}
+
+    for sku, product in products.items():
+        attrs = product.get("attributes", {})
+        instance_type = attrs.get("instanceType")
+        if instance_type not in instance_types:
+            continue
+        if attrs.get("operatingSystem") != "Linux":
+            continue
+        if attrs.get("preInstalledSw") != "NA":
+            continue
+        if attrs.get("tenancy") != "Shared":
+            continue
+        if attrs.get("capacitystatus") != "Used":
+            continue
+        if attrs.get("licenseModel") != "No License required":
+            continue
+
+        term_map = ondemand_terms.get(sku, {})
+        for term in term_map.values():
+            price = extract_usd_price_from_term(term)
+            if price is None:
+                continue
+            current = prices.get(instance_type)
+            if current is None or price < current:
+                prices[instance_type] = price
+
+    return prices
+
+
+
+
+def fetch_instance_metadata(region: str, initializing: bool = False):
+    print("Initializing cache..." if initializing else "Refreshing cache...", flush=True)
+    print("Fetching EC2 instance types...", flush=True)
+
+    data = run_aws([
+        "aws", "ec2", "describe-instance-types",
+        "--region", region,
+        "--filters", "Name=instance-type,Values=g*",
+        "--output", "json",
+    ])
+
+    raw_items = []
+    for it in data.get("InstanceTypes", []):
+        gpus = it.get("GpuInfo", {}).get("Gpus", [])
+        if not any(g.get("Manufacturer") == "NVIDIA" for g in gpus):
+            continue
+
+        vcpus = it.get("VCpuInfo", {}).get("DefaultVCpus")
+        memory_mib = it.get("MemoryInfo", {}).get("SizeInMiB")
+        if vcpus is None or memory_mib is None:
+            continue
+
+        gpu_info = get_nvidia_gpu_info(it)
+        raw_items.append({
+            "instance_type": it["InstanceType"],
+            "vcpus": int(vcpus),
+            "memory_mib": int(memory_mib),
+            "gpu_type": gpu_info["gpu_type"],
+            "gpus": gpu_info["gpus"],
+            "vram_gb": gpu_info["vram_gb"],
+        })
+
+    raw_items.sort(key=lambda x: x["instance_type"])
+    print(f"Found {len(raw_items)} NVIDIA-backed instance types.", flush=True)
+
+    instance_types = [item["instance_type"] for item in raw_items]
+
+    print("Fetching regional EC2 price list metadata...", flush=True)
+    price_list_arn = fetch_price_list_arn(region, verbose=False)
+
+    print("Downloading regional EC2 price list...", flush=True)
+    price_list_url = fetch_price_list_file_url(price_list_arn, verbose=False)
+    price_list_doc = download_price_list_json(price_list_url, verbose=False)
+
+    print("Extracting On-Demand prices...", flush=True)
+    ondemand_by_type = build_ondemand_price_map_from_catalog(price_list_doc, set(instance_types))
+
+    items = []
+    for item in raw_items:
+        items.append({
+            **item,
+            "ondemand_price": ondemand_by_type.get(item["instance_type"]),
+        })
+
+    payload = {
+        "cache_version": INSTANCE_CACHE_VERSION,
+        "region": region,
+        "pricing_api_region": PRICING_API_REGION,
+        "price_list_arn": price_list_arn,
+        "price_list_version": price_list_doc.get("version"),
+        "price_list_publication_date": price_list_doc.get("publicationDate"),
+        "fetched_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "items": items,
+    }
+    save_json(instance_cache_path(region), payload)
+
+    return items
+
+
+
+
+def has_valid_instance_cache(region: str) -> bool:
+    cached = load_json(instance_cache_path(region))
+    if not (
+        cached
+        and cached.get("cache_version") == INSTANCE_CACHE_VERSION
+        and isinstance(cached.get("items"), list)
+    ):
+        return False
+    items = cached["items"]
+    return all(
+        "gpu_type" in item
+        and "gpus" in item
+        and "vram_gb" in item
+        and "ondemand_price" in item
+        for item in items
+    )
+
+def get_instance_metadata(region: str, refresh: bool):
+    if not refresh and has_valid_instance_cache(region):
+        cached = load_json(instance_cache_path(region))
+        return cached["items"]
+
+    return fetch_instance_metadata(region, initializing=not has_valid_instance_cache(region))
+
+def fetch_spot_g_vt_quota(region: str):
+    data = run_aws([
+        "aws", "service-quotas", "list-service-quotas",
+        "--service-code", EC2_SERVICE_CODE,
+        "--region", region,
+        "--output", "json",
+    ])
+
+    quota = None
+    for item in data.get("Quotas", []):
+        if item.get("QuotaName") == SPOT_G_VT_QUOTA_NAME:
+            quota = item
+            break
+
+    if quota is None:
+        print(f"Could not find quota named '{SPOT_G_VT_QUOTA_NAME}' in region {region}.", file=sys.stderr)
+        sys.exit(1)
+
+    payload = {
+        "region": region,
+        "quota_name": quota["QuotaName"],
+        "quota_code": quota.get("QuotaCode"),
+        "service_code": quota.get("ServiceCode", EC2_SERVICE_CODE),
+        "value": float(quota["Value"]),
+        "unit": quota.get("Unit"),
+        "fetched_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    save_json(quota_cache_path(region), payload)
+    return payload
+
+
+def get_spot_g_vt_quota(region: str, refresh: bool):
+    if not refresh:
+        cached = load_json(quota_cache_path(region))
+        if cached and "value" in cached:
+            return cached
+    return fetch_spot_g_vt_quota(region)
+
+
+def get_spot_price_history(region: str, instance_types):
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    all_rows = []
+    next_token = None
+
+    while True:
+        cmd = [
+            "aws", "ec2", "describe-spot-price-history",
+            "--region", region,
+            "--product-descriptions", PRODUCT_DESCRIPTION,
+            "--start-time", now,
+            "--end-time", now,
+            "--instance-types", *instance_types,
+            "--output", "json",
+        ]
+        if next_token:
+            cmd += ["--starting-token", next_token]
+
+        data = run_aws(cmd)
+        all_rows.extend(data.get("SpotPriceHistory", []))
+        next_token = data.get("NextToken")
+        if not next_token:
+            break
+
+    return all_rows
+
+
+def pick_cheapest_per_instance(rows):
+    latest_per_type_az = {}
+
+    for row in rows:
+        key = (row["InstanceType"], row["AvailabilityZone"])
+        ts = row["Timestamp"]
+        if key not in latest_per_type_az or ts > latest_per_type_az[key]["Timestamp"]:
+            latest_per_type_az[key] = row
+
+    cheapest_per_type = {}
+    for row in latest_per_type_az.values():
+        itype = row["InstanceType"]
+        price = float(row["SpotPrice"])
+        if itype not in cheapest_per_type or price < float(cheapest_per_type[itype]["SpotPrice"]):
+            cheapest_per_type[itype] = row
+
+    return sorted(
+        cheapest_per_type.values(),
+        key=lambda r: (float(r["SpotPrice"]), r["InstanceType"]),
+    )
+
+
+def compute_discount_pct(spot_price, ondemand_price):
+    if ondemand_price is None or ondemand_price <= 0:
+        return "N/A"
+    pct = ((ondemand_price - spot_price) / ondemand_price) * 100.0
+    return f"{round(pct):.0f}%"
+
+
+def merge_metadata(price_rows, metadata_by_type):
+    merged = []
+    for row in price_rows:
+        meta = metadata_by_type.get(row["InstanceType"])
+        if not meta:
+            continue
+
+        spot_price = float(row["SpotPrice"])
+        ondemand_price = meta.get("ondemand_price")
+
+        merged.append({
+            "instance_type": row["InstanceType"],
+            "spot_price": spot_price,
+            "ondemand_price": ondemand_price,
+            "discount_pct": compute_discount_pct(spot_price, ondemand_price),
+            "availability_zone": row["AvailabilityZone"],
+            "timestamp": row["Timestamp"],
+            "vcpus": meta["vcpus"],
+            "memory_mib": meta["memory_mib"],
+            "gpu_type": meta["gpu_type"],
+            "gpus": meta["gpus"],
+            "vram_gb": meta["vram_gb"],
+        })
+    return merged
+
+
+def filter_by_quota(rows, quota_value):
+    return [r for r in rows if r["vcpus"] <= quota_value]
+
+
+def filter_by_min_ram(rows, min_ram_gib):
+    if min_ram_gib is None:
+        return rows
+    min_ram_mib = min_ram_gib * 1024
+    return [r for r in rows if r["memory_mib"] >= min_ram_mib]
+
+
+def filter_by_min_vram(rows, min_vram_gb):
+    if min_vram_gb is None:
+        return rows
+
+    out = []
+    for r in rows:
+        try:
+            if float(r["vram_gb"]) >= min_vram_gb:
+                out.append(r)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def print_table(rows, quota_value=None, show_all=False, verbose=False):
+    if verbose:
+        headers = [
+            "INSTANCE",
+            "SPOT_USD_HR",
+            "ONDEMAND_USD_HR",
+            "DISCOUNT",
+            "VRAM_GB",
+            "VCPU",
+            "RAM_GiB",
+            "GPU_TYPE",
+            "GPUs",
+            "AZ",
+            "LAST_PRICE_CHANGE",
+        ]
+    else:
+        headers = [
+            "INSTANCE",
+            "SPOT_USD_HR",
+            "VRAM_GB",
+            "VCPU",
+            "RAM_GiB",
+            "GPU_TYPE",
+            "AZ",
+        ]
+
+    table = []
+    for r in rows:
+        ondemand_str = "N/A" if r["ondemand_price"] is None else f"{r['ondemand_price']:.6f}"
+        if verbose:
+            row = [
+                r["instance_type"],
+                f"{r['spot_price']:.6f}",
+                ondemand_str,
+                r["discount_pct"],
+                str(r["vram_gb"]),
+                str(r["vcpus"]),
+                human_memory_gib(r["memory_mib"]),
+                r["gpu_type"],
+                r["gpus"],
+                r["availability_zone"],
+                human_ts_local(r["timestamp"]),
+            ]
+        else:
+            row = [
+                r["instance_type"],
+                f"{r['spot_price']:.6f}",
+                str(r["vram_gb"]),
+                str(r["vcpus"]),
+                human_memory_gib(r["memory_mib"]),
+                r["gpu_type"],
+                r["availability_zone"],
+            ]
+        table.append(row)
+
+    widths = [len(h) for h in headers]
+    for row in table:
+        for i, cell in enumerate(row):
+            widths[i] = max(widths[i], len(str(cell)))
+
+    fmt = "  ".join(f"{{:<{w}}}" for w in widths)
+
+    print()
+    if quota_value is not None and not show_all:
+        print(f"Spot quota filter: vCPUs <= {quota_value:g}")
+    if not show_all:
+        print("Showing only instance types within Spot quota.")
+    if rows:
+        print()
+    print(fmt.format(*headers))
+    for row in table:
+        print(fmt.format(*row))
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Show the cheapest current Spot price for NVIDIA-backed g* instances you can launch with your current Spot quota."
+    )
+    parser.add_argument(
+        "--region",
+        default=DEFAULT_REGION,
+        help=f"AWS region (default: {DEFAULT_REGION})",
+    )
+    parser.add_argument(
+        "--refresh-cache",
+        action="store_true",
+        help="Refresh the cached instance metadata and On-Demand pricing.",
+    )
+    parser.add_argument(
+        "--refresh-quota",
+        action="store_true",
+        help="Refresh cached Spot quota.",
+    )
+    parser.add_argument(
+        "--show-all",
+        action="store_true",
+        help="Show all matching instance types, ignoring the Spot quota filter.",
+    )
+    parser.add_argument(
+        "--min-ram",
+        type=float,
+        help="Only show instance types with at least this much RAM in GiB.",
+    )
+    parser.add_argument(
+        "--min-vram",
+        type=float,
+        help="Only show instance types with at least this much VRAM in GB.",
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Show additional output columns such as discount, GPUs, and the last Spot price change timestamp.",
+    )
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    region = args.region
+
+    cache_activity = args.refresh_cache or not has_valid_instance_cache(region)
+    metadata = get_instance_metadata(
+        region,
+        refresh=args.refresh_cache,
+    )
+    if not metadata:
+        print(f"No NVIDIA-backed g* instance types found in region {region}.")
+        return
+
+    quota = get_spot_g_vt_quota(region, refresh=args.refresh_quota)
+    quota_value = float(quota["value"])
+
+    instance_types = [x["instance_type"] for x in metadata]
+    if cache_activity:
+        print("Fetching Spot prices...", flush=True)
+    price_rows = get_spot_price_history(region, instance_types)
+    if not price_rows:
+        print("No spot price history found.")
+        print(f"  region: {region}")
+        print(f"  product description: {PRODUCT_DESCRIPTION}")
+        return
+
+    cheapest = pick_cheapest_per_instance(price_rows)
+    metadata_by_type = {x["instance_type"]: x for x in metadata}
+    merged = merge_metadata(cheapest, metadata_by_type)
+
+    merged = filter_by_min_ram(merged, args.min_ram)
+    merged = filter_by_min_vram(merged, args.min_vram)
+
+    if not args.show_all:
+        merged = filter_by_quota(merged, quota_value)
+
+    if not merged:
+        filters = []
+        if args.min_ram is not None:
+            filters.append(f"RAM >= {args.min_ram:g} GiB")
+        if args.min_vram is not None:
+            filters.append(f"VRAM >= {args.min_vram:g} GB")
+        if not args.show_all:
+            filters.append(f"Spot quota <= {quota_value:g} vCPUs")
+
+        if filters:
+            print(f"No matching instance types for filters: {', '.join(filters)}.")
+        else:
+            print("No matching instance types found.")
+        return
+
+    print_table(
+        merged,
+        quota_value=quota_value,
+        show_all=args.show_all,
+        verbose=args.verbose,
+    )
+
+
+if __name__ == "__main__":
+    main()
