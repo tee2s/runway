@@ -221,7 +221,7 @@ def cmd_ssh_config(profile, region, alias, name, key=None, user=None):
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="aws-tool",
+        prog="awsm",
         description="Small AWS convenience CLI built on top of the AWS CLI",
     )
     parser.add_argument("--profile")
@@ -238,6 +238,7 @@ def main():
     subparsers.add_parser("keys", help="List EC2 key pairs")
     subparsers.add_parser("sg", help="List security groups")
     subparsers.add_parser("roles", help="List IAM roles")
+    subparsers.add_parser("profiles", help="List IAM instance profiles and roles")
 
     ssh_config_parser = subparsers.add_parser(
         "ssh-config",
@@ -246,8 +247,7 @@ def main():
     )
     ssh_config_parser.add_argument("alias", help="SSH alias to create or update")
     ssh_config_parser.add_argument(
-        "name",
-        nargs="?",
+        "--name",
         help="Value of the EC2 Name tag (defaults to alias when omitted)",
     )
     ssh_config_parser.add_argument("--key", help="Path to SSH private key")
@@ -409,6 +409,20 @@ def main():
                     "list-roles",
                     "--query",
                     "Roles[].{RoleName:RoleName,Created:CreateDate}",
+                    "--output",
+                    "table",
+                ],
+            )
+
+        elif args.command == "profiles":
+            run_aws(
+                args.profile,
+                args.region,
+                [
+                    "iam",
+                    "list-instance-profiles",
+                    "--query",
+                    "InstanceProfiles[*].{Profile:InstanceProfileName,Role:Roles[0].RoleName}",
                     "--output",
                     "table",
                 ],
