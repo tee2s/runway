@@ -22,10 +22,22 @@ variable "vpc_cidr" {
   default     = "10.42.0.0/16"
 }
 
-variable "allowed_ssh_cidr" {
-  description = "CIDR that can reach SSH/DCV/WebRTC ports."
+variable "trusted_client_cidr" {
+  description = <<-EOT
+    IPv4 CIDR allowed to reach SSH (22), NICE DCV (8443), and Isaac Sim livestream ports on the Isaac security group.
+    Use your own public IP with host bits set, e.g. 198.51.100.75/32. Do not use 0.0.0.0/0 for Isaac streaming-facing ports.
+    Isaac livestreaming is unauthenticated and not encrypted; for anything beyond a private/trusted path, terminate TLS and
+    authenticate in front (e.g. reverse proxy), or keep these ports restricted and use VPN/private network only.
+  EOT
   type        = string
-  default     = "0.0.0.0/0"
+
+  validation {
+    condition = (
+      length(trimspace(var.trusted_client_cidr)) > 0 &&
+      var.trusted_client_cidr != "0.0.0.0/0"
+    )
+    error_message = "trusted_client_cidr must be non-empty and must not be 0.0.0.0/0. Set your client IP or office CIDR, e.g. 203.0.113.50/32."
+  }
 }
 
 variable "bucket_name" {
@@ -44,18 +56,6 @@ variable "isaac_instance_types" {
   description = "Allowed Isaac spot instance types."
   type        = list(string)
   default     = ["g6e.xlarge", "g7e.xlarge"]
-}
-
-variable "isaac_webrtc_tcp_ports" {
-  description = "Isaac inbound TCP port specs (single ports or ranges)."
-  type        = list(string)
-  default     = ["8211-8211"]
-}
-
-variable "isaac_webrtc_udp_ports" {
-  description = "Isaac inbound UDP port specs (single ports or ranges)."
-  type        = list(string)
-  default     = ["47995-48012"]
 }
 
 variable "enable_elastic_ip" {

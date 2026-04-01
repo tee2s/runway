@@ -5,7 +5,7 @@
 The system uses a Terraform-centric two-layer model plus image build:
 
 1. **Core infrastructure layer (Terraform)**
-   - VPC, IGW, public subnets, routing
+   - VPC, IGW, one public subnet (single AZ), routing
    - Gazebo/Isaac security groups and ingress policies
    - S3 bucket with versioning, encryption, and TLS-only access policy
    - IAM role and instance profile for simulation EC2
@@ -30,6 +30,12 @@ Runtime lifecycle is driven directly by Terraform variables:
 - `simulation_mode = "gazebo" | "isaac"` selects launch template and mode-specific resources
 
 Terraform outputs provide runtime identifiers and endpoints.
+
+## Network security
+
+- **`trusted_client_cidr`** restricts SSH (22), NICE DCV (8443), and Isaac livestream ports to a client or office CIDR (not `0.0.0.0/0`).
+- **Isaac** security group opens fixed livestream ports for that CIDR only: **49100/tcp**, **8210/tcp**, **4799/udp**.
+- Isaac streaming is not encrypted at the application layer; treat **public** access as requiring a reverse proxy with **TLS and authentication**, or use private/VPN paths only.
 
 ## Storage Model
 

@@ -186,8 +186,8 @@ locals {
     (local.base_param_path.workspace_path)         = var.workspace_path
     (local.base_param_path.gazebo_instance_types)  = join(",", var.gazebo_instance_types)
     (local.base_param_path.isaac_instance_types)   = join(",", var.isaac_instance_types)
-    (local.base_param_path.isaac_webrtc_tcp_ports) = join(",", var.isaac_webrtc_tcp_ports)
-    (local.base_param_path.isaac_webrtc_udp_ports) = join(",", var.isaac_webrtc_udp_ports)
+    (local.base_param_path.isaac_webrtc_tcp_ports) = local.isaac_livestream_tcp_ports_ssm
+    (local.base_param_path.isaac_webrtc_udp_ports) = local.isaac_livestream_udp_ports_ssm
     (local.base_param_path.elastic_ip_allocation_id) = var.enable_elastic_ip ? aws_eip.simulation[0].id : "none"
   }
 }

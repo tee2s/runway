@@ -10,12 +10,16 @@ The repository is organized as:
 
 ## What This System Does
 
-- Builds and manages VPC, subnets, security groups, S3, IAM role/profile, launch templates, and SSM config parameters.
+- Builds and manages VPC, one public subnet, security groups, S3, IAM role/profile, launch templates, and SSM config parameters.
 - Runs one active simulation session declaratively through Terraform:
   - `simulation_mode = "gazebo"` or `simulation_mode = "isaac"`
   - `runtime_enabled = true|false`
 - Supports an optional Elastic IP.
 - Uses an Isaac EBS volume from snapshot when Isaac mode is active.
+
+### Isaac livestreaming security
+
+Isaac Sim streaming is **unauthenticated and unencrypted**. Configure **`trusted_client_cidr`** in Terraform to your client IP (e.g. `/32`), not the whole Internet. For public exposure, use **TLS + auth in front** (e.g. nginx) or **VPN/private network**. Details: `terraform/README.md`.
 
 ## Prerequisites
 
@@ -54,7 +58,7 @@ robotics-aws/
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
-# set base_ami_id and isaac_snapshot_id in terraform.tfvars
+# set trusted_client_cidr, base_ami_id, and isaac_snapshot_id in terraform.tfvars
 terraform init
 terraform plan
 terraform apply

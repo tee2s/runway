@@ -34,25 +34,18 @@ resource "aws_route_table" "public" {
 }
 
 resource "aws_subnet" "public" {
-  for_each = {
-    for idx, az in slice(data.aws_availability_zones.available.names, 0, 2) :
-    idx => az
-  }
-
   vpc_id                  = aws_vpc.main.id
-  availability_zone       = each.value
-  cidr_block              = cidrsubnet(var.vpc_cidr, 8, tonumber(each.key))
+  availability_zone       = data.aws_availability_zones.available.names[0]
+  cidr_block              = cidrsubnet(var.vpc_cidr, 8, 0)
   map_public_ip_on_launch = true
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-public-${each.value}"
+    Name = "${var.project_name}-public"
   })
 }
 
 resource "aws_route_table_association" "public" {
-  for_each = aws_subnet.public
-
-  subnet_id      = each.value.id
+  subnet_id      = aws_subnet.public.id
   route_table_id = aws_route_table.public.id
 }
 
@@ -90,66 +83,25 @@ resource "aws_security_group" "isaac" {
   })
 }
 
-resource "aws_vpc_security_group_ingress_rule" "gazebo_ssh" {
+# Ingress from trusted_client_cidr only. Isaac livestream has no app-level auth/TLS; use VPN/proxy/TLS in front for public paths.
+resource "aws_vpc_security_group_ingress_rule" "gazebo_trusted" {
+  for_each = local.sim_ingress_admin
+
   security_group_id = aws_security_group.gazebo.id
-  cidr_ipv4         = var.allowed_ssh_cidr
-  from_port         = 22
-  ip_protocol       = "tcp"
-  to_port           = 22
-  description       = "SSH"
+  cidr_ipv4         = var.trusted_client_cidr
+  from_port         = each.value.port
+  to_port           = each.value.port
+  ip_protocol       = each.value.protocol
+  description       = each.value.description
 }
 
-resource "aws_vpc_security_group_ingress_rule" "gazebo_dcv" {
-  security_group_id = aws_security_group.gazebo.id
-  cidr_ipv4         = var.allowed_ssh_cidr
-  from_port         = 8443
-  ip_protocol       = "tcp"
-  to_port           = 8443
-  description       = "NICE DCV"
-}
-
-resource "aws_vpc_security_group_ingress_rule" "isaac_ssh" {
-  security_group_id = aws_security_group.isaac.id
-  cidr_ipv4         = var.allowed_ssh_cidr
-  from_port         = 22
-  ip_protocol       = "tcp"
-  to_port           = 22
-  description       = "SSH"
-}
-
-resource "aws_vpc_security_group_ingress_rule" "isaac_dcv" {
-  security_group_id = aws_security_group.isaac.id
-  cidr_ipv4         = var.allowed_ssh_cidr
-  from_port         = 8443
-  ip_protocol       = "tcp"
-  to_port           = 8443
-  description       = "NICE DCV"
-}
-
-resource "aws_vpc_security_group_ingress_rule" "isaac_tcp_webrtc" {
-  for_each = {
-    for idx, rule in local.tcp_port_rules :
-    idx => rule
-  }
+resource "aws_vpc_security_group_ingress_rule" "isaac_trusted" {
+  for_each = local.isaac_ingress_rules
 
   security_group_id = aws_security_group.isaac.id
-  cidr_ipv4         = var.allowed_ssh_cidr
-  from_port         = each.value.from_port
-  ip_protocol       = "tcp"
-  to_port           = each.value.to_port
-  description       = "Isaac WebRTC TCP ${each.value.from_port}-${each.value.to_port}"
-}
-
-resource "aws_vpc_security_group_ingress_rule" "isaac_udp_webrtc" {
-  for_each = {
-    for idx, rule in local.udp_port_rules :
-    idx => rule
-  }
-
-  security_group_id = aws_security_group.isaac.id
-  cidr_ipv4         = var.allowed_ssh_cidr
-  from_port         = each.value.from_port
-  ip_protocol       = "udp"
-  to_port           = each.value.to_port
-  description       = "Isaac WebRTC UDP ${each.value.from_port}-${each.value.to_port}"
+  cidr_ipv4         = var.trusted_client_cidr
+  from_port         = each.value.port
+  to_port           = each.value.port
+  ip_protocol       = each.value.protocol
+  description       = each.value.description
 }

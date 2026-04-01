@@ -2,7 +2,8 @@ region               = "us-west-2"
 project_name         = "robotics-aws"
 parameter_prefix     = "/robotics-aws"
 vpc_cidr             = "10.42.0.0/16"
-allowed_ssh_cidr     = "0.0.0.0/0"
+# Your public IP /32 (or office CIDR). Required — 0.0.0.0/0 is rejected. See terraform/README.md for Isaac streaming security.
+trusted_client_cidr  = "203.0.113.50/32"
 bucket_name          = ""
 enable_elastic_ip    = false
 base_ami_id          = "ami-REPLACE-ME"
@@ -20,12 +21,4 @@ gazebo_instance_types = [
 isaac_instance_types = [
   "g6e.xlarge",
   "g7e.xlarge"
-]
-
-isaac_webrtc_tcp_ports = [
-  "8211-8211"
-]
-
-isaac_webrtc_udp_ports = [
-  "47995-48012"
 ]

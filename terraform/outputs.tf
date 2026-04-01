@@ -4,8 +4,8 @@ output "vpc_id" {
 }
 
 output "public_subnet_ids" {
-  description = "Public subnet IDs used for runtime sessions."
-  value       = [for s in aws_subnet.public : s.id]
+  description = "Public subnet ID(s) used for runtime sessions (single-AZ workstation layout)."
+  value       = [aws_subnet.public.id]
 }
 
 output "bucket_name" {
