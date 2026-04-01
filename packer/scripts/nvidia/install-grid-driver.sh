@@ -10,22 +10,9 @@ set -euo pipefail
 
 export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
 
-if [[ ! -f /etc/os-release ]]; then
-  echo "[install-grid] ERROR: /etc/os-release not found."
-  exit 1
-fi
-
-# shellcheck disable=SC1091
-source /etc/os-release
-if [[ "${ID:-}" != "ubuntu" ]]; then
-  echo "[install-grid] ERROR: This script currently supports Ubuntu only."
-  exit 1
-fi
-
 echo "[install-grid] Installing prerequisites..."
 sudo apt-get update -y
 sudo apt-get install -y \
-  awscli \
   gcc \
   make \
   linux-headers-$(uname -r) \
@@ -56,21 +43,30 @@ cleanup() {
 trap cleanup EXIT
 
 echo "[install-grid] Downloading AWS-provided GRID drivers from S3..."
-aws s3 cp --recursive s3://ec2-linux-nvidia-drivers/latest/ "${TMP_DIR}/"
+GRID_DRIVER_VERSION="${GRID_DRIVER_VERSION:-latest}"
+GRID_S3_URI="s3://ec2-linux-nvidia-drivers/latest/"
+
+if [[ "${GRID_DRIVER_VERSION}" != "latest" ]]; then
+  GRID_S3_URI="s3://ec2-linux-nvidia-drivers/grid-${GRID_DRIVER_VERSION}/"
+fi
+
+echo "[install-grid] Download source: ${GRID_S3_URI}"
+if ! aws s3 cp --recursive "${GRID_S3_URI}" "${TMP_DIR}/"; then
+  echo "[install-grid] ERROR: Requested GRID driver version '${GRID_DRIVER_VERSION}' is not available in s3://ec2-linux-nvidia-drivers."
+  echo "[install-grid]        Expected path: ${GRID_S3_URI}"
+  exit 1
+fi
 
 shopt -s nullglob
 GRID_RUN_FILES=("${TMP_DIR}"/NVIDIA-Linux-x86_64*.run)
 shopt -u nullglob
 
-if [[ "${#GRID_RUN_FILES[@]}" -eq 0 ]]; then
+if [[ ${#GRID_RUN_FILES[@]} -eq 0 ]]; then
   echo "[install-grid] ERROR: No GRID installer (*.run) found in downloaded artifacts."
   exit 1
 fi
 
-IFS=$'\n' GRID_RUN_FILES_SORTED=($(printf '%s\n' "${GRID_RUN_FILES[@]}" | sort -V))
-unset IFS
-GRID_RUN_FILE="${GRID_RUN_FILES_SORTED[-1]}"
-
+GRID_RUN_FILE="${GRID_RUN_FILES[0]}"
 echo "[install-grid] Running installer: $(basename "${GRID_RUN_FILE}")"
 chmod +x "${GRID_RUN_FILE}"
 sudo /bin/sh "${GRID_RUN_FILE}" --silent

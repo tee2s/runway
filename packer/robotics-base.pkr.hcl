@@ -124,6 +124,13 @@ build {
 
   provisioner "shell" {
     environment_vars = [
+      "DEBIAN_FRONTEND=noninteractive"
+    ]
+    script = "scripts/install-awscli.sh"
+  }
+
+  provisioner "shell" {
+    environment_vars = [
       "DEBIAN_FRONTEND=noninteractive",
       "UBUNTU_DISTRO_TAG=${var.ubuntu_distro_tag}",
       "NVIDIA_DRIVER_BRANCH=${var.nvidia_driver_branch}",
@@ -144,11 +151,6 @@ build {
   }
 
   provisioner "shell" {
-    environment_vars = [
-      "DEBIAN_FRONTEND=noninteractive",
-      "NVIDIA_DRIVER_BRANCH=${var.nvidia_driver_branch}",
-      "NVIDIA_DRIVER_VERSION=${var.nvidia_driver_version}"
-    ]
     script = "scripts/nvidia/validate-driver.sh"
   }
 
@@ -198,13 +200,6 @@ build {
       "NVIDIA_CONTAINER_TOOLKIT_VERSION=${var.nvidia_container_toolkit_version}"
     ]
     script = "scripts/install-docker.sh"
-  }
-
-  provisioner "shell" {
-    environment_vars = [
-      "DEBIAN_FRONTEND=noninteractive"
-    ]
-    script = "scripts/install-awscli.sh"
   }
 
   provisioner "shell" {

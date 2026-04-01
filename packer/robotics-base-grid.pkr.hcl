@@ -16,7 +16,7 @@ variable "region" {
 
 variable "instance_type" {
   type    = string
-  default = "g4dn.xlarge"
+  default = "g6f.large"
 }
 
 variable "root_volume_size" {
@@ -54,6 +54,11 @@ variable "nvidia_driver_version" {
   default = ""
 }
 
+variable "grid_driver_version" {
+  type    = string
+  default = ""
+}
+
 variable "dcv_version" {
   type    = string
   default = ""
@@ -78,7 +83,8 @@ source "amazon-ebs" "robotics_base" {
   region        = var.region
   instance_type = var.instance_type
   ssh_username  = var.ssh_username
-
+  iam_instance_profile = "packer-grid-builder-profile"
+  
   source_ami_filter {
     filters = {
       name                = var.source_ami_filter_name
@@ -122,6 +128,13 @@ build {
     script = "scripts/setup-base.sh"
   }
 
+  provisioner "shell" {
+    environment_vars = [
+      "DEBIAN_FRONTEND=noninteractive"
+    ]
+    script = "scripts/install-awscli.sh"
+  }
+
   # AWS GRID driver guide reboots after package upgrades before installation.
   provisioner "shell" {
     inline              = ["sudo reboot"]
@@ -137,9 +150,7 @@ build {
   provisioner "shell" {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive",
-      "UBUNTU_DISTRO_TAG=${var.ubuntu_distro_tag}",
-      "NVIDIA_DRIVER_BRANCH=${var.nvidia_driver_branch}",
-      "NVIDIA_DRIVER_VERSION=${var.nvidia_driver_version}"
+      "GRID_DRIVER_VERSION=${var.grid_driver_version}"
     ]
     script = "scripts/nvidia/install-grid-driver.sh"
   }
@@ -156,11 +167,6 @@ build {
   }
 
   provisioner "shell" {
-    environment_vars = [
-      "DEBIAN_FRONTEND=noninteractive",
-      "NVIDIA_DRIVER_BRANCH=${var.nvidia_driver_branch}",
-      "NVIDIA_DRIVER_VERSION=${var.nvidia_driver_version}"
-    ]
     script = "scripts/nvidia/validate-driver.sh"
   }
 
@@ -210,13 +216,6 @@ build {
       "NVIDIA_CONTAINER_TOOLKIT_VERSION=${var.nvidia_container_toolkit_version}"
     ]
     script = "scripts/install-docker.sh"
-  }
-
-  provisioner "shell" {
-    environment_vars = [
-      "DEBIAN_FRONTEND=noninteractive"
-    ]
-    script = "scripts/install-awscli.sh"
   }
 
   provisioner "shell" {

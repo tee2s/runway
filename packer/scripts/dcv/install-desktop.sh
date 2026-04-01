@@ -16,8 +16,19 @@ sudo apt-get install -y \
   ubuntu-desktop \
   gdm3 \
   xorg \
-  mesa-utils \
-  nvidia-xconfig
+  mesa-utils
+
+echo "[install-desktop] Ensuring nvidia-xconfig is available..."
+if command -v nvidia-xconfig >/dev/null 2>&1; then
+  echo "[install-desktop] Found nvidia-xconfig at $(command -v nvidia-xconfig)"
+elif apt-cache show nvidia-xconfig >/dev/null 2>&1; then
+  echo "[install-desktop] Installing nvidia-xconfig from apt..."
+  sudo apt-get install -y nvidia-xconfig
+else
+  echo "[install-desktop] ERROR: nvidia-xconfig command is required but not available."
+  echo "[install-desktop]        It was not installed by the NVIDIA driver installer and apt has no nvidia-xconfig package."
+  exit 1
+fi
 
 echo "[install-desktop] Ensuring GDM3 is the default display manager..."
 if [[ ! -f /etc/X11/default-display-manager ]] || ! grep -qx '/usr/sbin/gdm3' /etc/X11/default-display-manager; then

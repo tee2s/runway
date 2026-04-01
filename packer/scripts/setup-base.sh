@@ -18,6 +18,7 @@ sudo apt-get install -y \
   gnupg \
   htop \
   jq \
+  linux-aws \
   lsb-release \
   net-tools \
   software-properties-common \
