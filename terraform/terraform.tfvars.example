@@ -1,0 +1,31 @@
+region               = "us-west-2"
+project_name         = "robotics-aws"
+parameter_prefix     = "/robotics-aws"
+vpc_cidr             = "10.42.0.0/16"
+allowed_ssh_cidr     = "0.0.0.0/0"
+bucket_name          = ""
+enable_elastic_ip    = false
+base_ami_id          = "ami-REPLACE-ME"
+isaac_snapshot_id    = "snap-REPLACE-ME"
+s3_project_prefix    = "project/"
+workspace_path       = "/workspace/project"
+runtime_enabled      = false
+simulation_mode      = "gazebo"
+
+gazebo_instance_types = [
+  "g4dn.xlarge",
+  "g5.xlarge"
+]
+
+isaac_instance_types = [
+  "g6e.xlarge",
+  "g7e.xlarge"
+]
+
+isaac_webrtc_tcp_ports = [
+  "8211-8211"
+]
+
+isaac_webrtc_udp_ports = [
+  "47995-48012"
+]
