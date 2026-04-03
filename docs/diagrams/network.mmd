@@ -1,0 +1,24 @@
+---
+config:
+  class:
+    hideEmptyMembersBox: true
+---
+classDiagram
+    direction LR
+
+    class VPC
+    class Subnet
+    class RouteTable["Route Table"]
+    class InternetGateway["Internet Gateway"]
+    class RouteTableAssociation["Route Table Association"]
+    class SecurityGroup["Security Group"]
+
+    VPC *-- Subnet
+    VPC *-- RouteTable
+    VPC o-- InternetGateway
+    VPC *-- SecurityGroup
+
+    Subnet "1" <.. "0..1" RouteTable Association 
+    Route Table "1" <.. "*" RouteTable Association 
+
+    RouteTable --> InternetGateway : uses
