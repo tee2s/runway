@@ -58,7 +58,3 @@ output "isaac_runtime_volume_id" {
   value       = var.runtime_enabled && var.simulation_mode == "isaac" ? aws_ebs_volume.isaac_runtime[0].id : null
 }
 
-output "elastic_ip_allocation_id" {
-  description = "Elastic IP allocation ID when enabled."
-  value       = var.enable_elastic_ip ? aws_eip.simulation[0].id : null
-}

@@ -17,7 +17,6 @@ locals {
     isaac_instance_types     = "${local.prefix}/config/isaac-instance-types"
     isaac_webrtc_tcp_ports   = "${local.prefix}/config/isaac-webrtc-tcp-ports"
     isaac_webrtc_udp_ports   = "${local.prefix}/config/isaac-webrtc-udp-ports"
-    elastic_ip_allocation_id = "${local.prefix}/config/elastic-ip-allocation-id"
   }
 
   # Isaac Sim livestream: fixed SG + SSM documentation (TCP signaling 49100, TCP media 8210, UDP signaling 4799).
@@ -57,36 +56,6 @@ locals {
   }
 
   isaac_ingress_rules = merge(local.sim_ingress_admin, local.isaac_ingress_livestream)
-
-  gazebo_tag_specifications = [
-    {
-      resource_type = "instance"
-      tags = merge(local.common_tags, {
-        Mode = "gazebo"
-      })
-    },
-    {
-      resource_type = "volume"
-      tags = merge(local.common_tags, {
-        Mode = "gazebo"
-      })
-    }
-  ]
-
-  isaac_tag_specifications = [
-    {
-      resource_type = "instance"
-      tags = merge(local.common_tags, {
-        Mode = "isaac"
-      })
-    },
-    {
-      resource_type = "volume"
-      tags = merge(local.common_tags, {
-        Mode = "isaac"
-      })
-    }
-  ]
 
   runtime_launch_template_name = var.simulation_mode == "isaac" ? aws_launch_template.isaac.name : aws_launch_template.gazebo.name
   runtime_security_group_id    = var.simulation_mode == "isaac" ? aws_security_group.isaac.id : aws_security_group.gazebo.id

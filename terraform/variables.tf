@@ -58,12 +58,6 @@ variable "isaac_instance_types" {
   default     = ["g6e.xlarge", "g7e.xlarge"]
 }
 
-variable "enable_elastic_ip" {
-  description = "Whether to reserve and use an elastic IP for runtime instance."
-  type        = bool
-  default     = false
-}
-
 variable "base_ami_id" {
   description = "Base AMI for simulation launch templates."
   type        = string

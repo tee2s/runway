@@ -39,9 +39,3 @@ resource "aws_volume_attachment" "isaac_runtime" {
   instance_id = aws_instance.runtime[0].id
 }
 
-resource "aws_eip_association" "runtime" {
-  count = var.runtime_enabled && var.enable_elastic_ip ? 1 : 0
-
-  instance_id   = aws_instance.runtime[0].id
-  allocation_id = aws_eip.simulation[0].id
-}

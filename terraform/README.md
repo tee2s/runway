@@ -52,5 +52,4 @@ terraform apply -var runtime_enabled=false
 ## Notes
 
 - Set `trusted_client_cidr`, `base_ami_id`, and `isaac_snapshot_id` before launching runtime sessions.
-- If `enable_elastic_ip=true`, Terraform reserves an EIP and associates it to runtime while enabled.
 - Use `terraform output` to retrieve runtime endpoints and IDs.

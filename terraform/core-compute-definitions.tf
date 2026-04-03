@@ -66,6 +66,7 @@ resource "aws_launch_template" "gazebo" {
   name = "${var.project_name}-gazebo-lt"
 
   image_id      = var.base_ami_id
+  //ToDo: make the instance type variable
   instance_type = "g5.xlarge"
   user_data = base64encode(templatefile("${path.module}/templates/bootstrap.sh.tftpl", {
     mode               = "gazebo"
@@ -93,7 +94,7 @@ resource "aws_launch_template" "gazebo" {
 
   block_device_mappings {
     device_name = "/dev/sda1"
-
+    //Todo make the volume size variable
     ebs {
       volume_size           = 120
       volume_type           = "gp3"
@@ -104,12 +105,18 @@ resource "aws_launch_template" "gazebo" {
 
   vpc_security_group_ids = [aws_security_group.gazebo.id]
 
-  dynamic "tag_specifications" {
-    for_each = local.gazebo_tag_specifications
-    content {
-      resource_type = tag_specifications.value.resource_type
-      tags          = tag_specifications.value.tags
-    }
+  tag_specifications {
+    resource_type = "instance"
+    tags = merge(local.common_tags, {
+      Mode = "gazebo"
+    })
+  }
+
+  tag_specifications {
+    resource_type = "volume"
+    tags = merge(local.common_tags, {
+      Mode = "gazebo"
+    })
   }
 
   tags = local.common_tags
@@ -157,24 +164,21 @@ resource "aws_launch_template" "isaac" {
 
   vpc_security_group_ids = [aws_security_group.isaac.id]
 
-  dynamic "tag_specifications" {
-    for_each = local.isaac_tag_specifications
-    content {
-      resource_type = tag_specifications.value.resource_type
-      tags          = tag_specifications.value.tags
-    }
+  tag_specifications {
+    resource_type = "instance"
+    tags = merge(local.common_tags, {
+      Mode = "isaac"
+    })
+  }
+
+  tag_specifications {
+    resource_type = "volume"
+    tags = merge(local.common_tags, {
+      Mode = "isaac"
+    })
   }
 
   tags = local.common_tags
-}
-
-resource "aws_eip" "simulation" {
-  count  = var.enable_elastic_ip ? 1 : 0
-  domain = "vpc"
-
-  tags = merge(local.common_tags, {
-    Role = "simulation-eip"
-  })
 }
 
 locals {
@@ -188,7 +192,6 @@ locals {
     (local.base_param_path.isaac_instance_types)   = join(",", var.isaac_instance_types)
     (local.base_param_path.isaac_webrtc_tcp_ports) = local.isaac_livestream_tcp_ports_ssm
     (local.base_param_path.isaac_webrtc_udp_ports) = local.isaac_livestream_udp_ports_ssm
-    (local.base_param_path.elastic_ip_allocation_id) = var.enable_elastic_ip ? aws_eip.simulation[0].id : "none"
   }
 }
 
