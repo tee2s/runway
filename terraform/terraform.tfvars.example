@@ -5,6 +5,9 @@ vpc_cidr             = "10.42.0.0/16"
 # Your public IP /32 (or office CIDR). Required — 0.0.0.0/0 is rejected. See terraform/README.md for Isaac streaming security.
 trusted_client_cidr  = "203.0.113.50/32"
 bucket_name          = ""
+gazebo_launch_template_instance_type = "g5.xlarge"
+isaac_launch_template_instance_type  = "g6e.xlarge"
+root_volume_size_gib = 120
 base_ami_id          = "ami-REPLACE-ME"
 isaac_snapshot_id    = "snap-REPLACE-ME"
 s3_project_prefix    = "project/"

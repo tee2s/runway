@@ -58,6 +58,24 @@ variable "isaac_instance_types" {
   default     = ["g6e.xlarge", "g7e.xlarge"]
 }
 
+variable "gazebo_launch_template_instance_type" {
+  description = "EC2 instance type used by the Gazebo launch template."
+  type        = string
+  default     = "g5.xlarge"
+}
+
+variable "isaac_launch_template_instance_type" {
+  description = "EC2 instance type used by the Isaac launch template."
+  type        = string
+  default     = "g6e.xlarge"
+}
+
+variable "root_volume_size_gib" {
+  description = "Root EBS volume size in GiB for simulation launch templates."
+  type        = number
+  default     = 120
+}
+
 variable "base_ami_id" {
   description = "Base AMI for simulation launch templates."
   type        = string

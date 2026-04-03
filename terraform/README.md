@@ -52,4 +52,5 @@ terraform apply -var runtime_enabled=false
 ## Notes
 
 - Set `trusted_client_cidr`, `base_ami_id`, and `isaac_snapshot_id` before launching runtime sessions.
+- Tune launch template sizing with `gazebo_launch_template_instance_type`, `isaac_launch_template_instance_type`, and `root_volume_size_gib` as needed.
 - Use `terraform output` to retrieve runtime endpoints and IDs.

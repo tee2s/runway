@@ -66,8 +66,7 @@ resource "aws_launch_template" "gazebo" {
   name = "${var.project_name}-gazebo-lt"
 
   image_id      = var.base_ami_id
-  //ToDo: make the instance type variable
-  instance_type = "g5.xlarge"
+  instance_type = var.gazebo_launch_template_instance_type
   user_data = base64encode(templatefile("${path.module}/templates/bootstrap.sh.tftpl", {
     mode               = "gazebo"
     project_prefix_param = local.base_param_path.project_prefix
@@ -94,9 +93,8 @@ resource "aws_launch_template" "gazebo" {
 
   block_device_mappings {
     device_name = "/dev/sda1"
-    //Todo make the volume size variable
     ebs {
-      volume_size           = 120
+      volume_size           = var.root_volume_size_gib
       volume_type           = "gp3"
       delete_on_termination = true
       encrypted             = true
@@ -126,7 +124,7 @@ resource "aws_launch_template" "isaac" {
   name = "${var.project_name}-isaac-lt"
 
   image_id      = var.base_ami_id
-  instance_type = "g6e.xlarge"
+  instance_type = var.isaac_launch_template_instance_type
   user_data = base64encode(templatefile("${path.module}/templates/bootstrap.sh.tftpl", {
     mode               = "isaac"
     project_prefix_param = local.base_param_path.project_prefix
@@ -155,7 +153,7 @@ resource "aws_launch_template" "isaac" {
     device_name = "/dev/sda1"
 
     ebs {
-      volume_size           = 120
+      volume_size           = var.root_volume_size_gib
       volume_type           = "gp3"
       delete_on_termination = true
       encrypted             = true
