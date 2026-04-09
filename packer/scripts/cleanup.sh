@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euxo pipefail
 
+export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
+export NEEDRESTART_MODE="${NEEDRESTART_MODE:-a}"
+
 echo "[cleanup] Removing apt caches and package indexes..."
 sudo apt-get autoremove -y
 sudo apt-get clean

@@ -9,6 +9,7 @@
 set -euo pipefail
 
 export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
+export NEEDRESTART_MODE="${NEEDRESTART_MODE:-a}"
 
 # Optional:
 #   NVIDIA_DRIVER_BRANCH="580"

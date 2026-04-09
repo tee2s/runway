@@ -9,6 +9,7 @@
 set -euo pipefail
 
 export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
+export NEEDRESTART_MODE="${NEEDRESTART_MODE:-a}"
 
 echo "[install-grid] Installing prerequisites..."
 sudo apt-get update -y
@@ -69,6 +70,6 @@ fi
 GRID_RUN_FILE="${GRID_RUN_FILES[0]}"
 echo "[install-grid] Running installer: $(basename "${GRID_RUN_FILE}")"
 chmod +x "${GRID_RUN_FILE}"
-sudo /bin/sh "${GRID_RUN_FILE}" --silent
+sudo /bin/sh "${GRID_RUN_FILE}" --silent 
 
 echo "[install-grid] Installation complete. Reboot required."

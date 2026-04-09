@@ -8,6 +8,7 @@ set -euxo pipefail
 
 echo "[install-ros] Starting ROS and Gazebo installation..."
 export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
+export NEEDRESTART_MODE="${NEEDRESTART_MODE:-a}"
 export ROS_DISTRO="${ROS_DISTRO:?ROS_DISTRO must be set}"
 
 UBUNTU_CODENAME="$(

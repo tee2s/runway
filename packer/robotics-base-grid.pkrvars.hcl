@@ -6,6 +6,12 @@ ubuntu_distro_tag      = "ubuntu2404"
 ami_name_prefix        = "robotics-base-grid"
 ssh_username           = "ubuntu"
 
+# Make sure the variable exists in the ParameterStore otherwise create it by running create-ubuntu-password.sh
+ubuntu_password_hash_parameter_name = "ubuntu-default-password-hash"
+
+# Packer Build Instance needs access to s3 Bucket for Nvidia Grid/vGPU Driver Download
+iam_instance_profile   = "packer-build-instance-profile"
+
 # Leave empty to install the latest Nvidia Grid Driver or set a specific value (for example "19.4") 
 # Use this command to see available versions aws s3 ls --recursive s3://ec2-linux-nvidia-drivers/
 grid_driver_version = ""
@@ -17,3 +23,5 @@ dcv_version = ""
 nvidia_container_toolkit_version = ""
 
 ros_distro = "kilted"
+
+isaac_sim_package_url = "https://downloads.isaacsim.nvidia.com/isaac-sim-standalone-5.1.0-linux-x86_64.zip"

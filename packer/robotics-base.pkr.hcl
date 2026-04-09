@@ -44,6 +44,11 @@ variable "ssh_username" {
   default = "ubuntu"
 }
 
+variable "ubuntu_password_hash_parameter_name" {
+  type    = string
+  default = "ubuntu-default-password-hash"
+}
+
 variable "nvidia_driver_branch" {
   type    = string
   default = "580"
@@ -67,6 +72,11 @@ variable "nvidia_container_toolkit_version" {
 variable "ros_distro" {
   type    = string
   default = "kilted"
+}
+
+variable "isaac_sim_package_url" {
+  type    = string
+  default = "https://downloads.isaacsim.nvidia.com/isaac-sim-standalone-5.1.0-linux-x86_64.zip"
 }
 
 locals {
@@ -196,6 +206,25 @@ build {
 
   provisioner "shell" {
     environment_vars = [
+      "PARAM_NAME=${var.ubuntu_password_hash_parameter_name}",
+      "REGION=${var.region}"
+    ]
+    inline = [
+      "UBUNTU_PASSWORD_HASH=$(aws ssm get-parameter --name \"$PARAM_NAME\" --with-decryption --region \"$REGION\" --query 'Parameter.Value' --output text)",
+      "sudo usermod --password \"$UBUNTU_PASSWORD_HASH\" ubuntu"
+    ]
+  }
+
+  provisioner "shell" {
+    inline = [
+      "sudo install -d -m 0755 /etc/ssh/sshd_config.d",
+      "printf '%s\\n' 'PasswordAuthentication no' 'KbdInteractiveAuthentication no' 'ChallengeResponseAuthentication no' | sudo tee /etc/ssh/sshd_config.d/99-password-auth-disabled.conf >/dev/null",
+      "sudo systemctl reload ssh || true"
+    ]
+  }
+
+  provisioner "shell" {
+    environment_vars = [
       "DEBIAN_FRONTEND=noninteractive",
       "NVIDIA_CONTAINER_TOOLKIT_VERSION=${var.nvidia_container_toolkit_version}"
     ]
@@ -215,6 +244,14 @@ build {
       "DEBIAN_FRONTEND=noninteractive"
     ]
     script = "scripts/install-distrobox.sh"
+  }
+
+  provisioner "shell" {
+    environment_vars = [
+      "DEBIAN_FRONTEND=noninteractive",
+      "ISAAC_SIM_PACKAGE_URL=${var.isaac_sim_package_url}"
+    ]
+    script = "scripts/install-isaac-sim.sh"
   }
 
   provisioner "shell" {

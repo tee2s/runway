@@ -5,6 +5,7 @@ source_ami_filter_name = "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-ser
 ubuntu_distro_tag      = "ubuntu2404"
 ami_name_prefix        = "robotics-base"
 ssh_username           = "ubuntu"
+ubuntu_password_hash_parameter_name = "ubuntu-default-password-hash"
 
 # Optional NVIDIA driver selection.
 # If both are left empty, the installer will use the latest driver available from the enabled NVIDIA repo,
@@ -22,3 +23,4 @@ dcv_version = ""
 nvidia_container_toolkit_version = ""
 
 ros_distro = "kilted"
+isaac_sim_package_url = "https://downloads.isaacsim.nvidia.com/isaac-sim-standalone-5.1.0-linux-x86_64.zip"

@@ -8,6 +8,7 @@
 set -euo pipefail
 
 export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
+export NEEDRESTART_MODE="${NEEDRESTART_MODE:-a}"
 
 echo "[install-docker] Removing old Docker-related packages if present..."
 sudo apt-get remove -y \

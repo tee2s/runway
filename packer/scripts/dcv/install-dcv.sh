@@ -10,6 +10,7 @@
 set -euo pipefail
 
 export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
+export NEEDRESTART_MODE="${NEEDRESTART_MODE:-a}"
 
 UBUNTU_DISTRO_TAG="${UBUNTU_DISTRO_TAG:?UBUNTU_DISTRO_TAG must be set}"
 
@@ -52,6 +53,15 @@ cat <<'EOF' | sudo tee /etc/dcv/dcv.conf >/dev/null
 enable-quic-frontend = true
 web-port = 8443
 quic-port = 8443
+
+[security]
+authentication = "system"
+
+[session-management]
+create-session = true
+
+[session-management/automatic-console-session]
+owner = "ubuntu"
 EOF
 
 echo "[install-dcv] Starting DCV server..."

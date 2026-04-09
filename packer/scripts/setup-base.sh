@@ -2,6 +2,7 @@
 set -euo pipefail
 
 export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
+export NEEDRESTART_MODE="${NEEDRESTART_MODE:-a}"
 
 echo "[setup-base] Updating apt metadata..."
 sudo apt-get update 
