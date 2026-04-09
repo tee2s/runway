@@ -38,4 +38,3 @@ resource "aws_volume_attachment" "isaac_runtime" {
   volume_id   = aws_ebs_volume.isaac_runtime[0].id
   instance_id = aws_instance.runtime[0].id
 }
-

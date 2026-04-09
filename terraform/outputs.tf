@@ -57,4 +57,3 @@ output "isaac_runtime_volume_id" {
   description = "Isaac runtime volume ID when isaac mode is enabled."
   value       = var.runtime_enabled && var.simulation_mode == "isaac" ? aws_ebs_volume.isaac_runtime[0].id : null
 }
-

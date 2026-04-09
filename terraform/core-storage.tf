@@ -1,9 +1,17 @@
 resource "aws_s3_bucket" "project" {
-  bucket = var.bucket_name != "" ? var.bucket_name : null
+  bucket = var.bucket_name
 
   tags = merge(local.common_tags, {
     Name = "${var.project_name}-bucket"
   })
+}
+
+resource "aws_s3_bucket_ownership_controls" "project" {
+  bucket = aws_s3_bucket.project.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
 }
 
 resource "aws_s3_bucket_versioning" "project" {
@@ -35,6 +43,7 @@ resource "aws_s3_bucket_public_access_block" "project" {
 
 resource "aws_s3_bucket_policy" "project_ssl_only" {
   bucket = aws_s3_bucket.project.id
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
