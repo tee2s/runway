@@ -1,110 +1,91 @@
-# robotics-aws
+# Robotics Development Cloud Infrastructure
 
-Terraform-first AWS Spot workflow for robotics simulation with **Gazebo** and **Isaac Sim**.
+Terraform + Packer setup for running GPU workstation setup for robotics simulation environments on AWS.
 
-The repository is organized as:
+Supports two runtime modes:
+- `gazebo` (ROS/Gazebo workflows)
+- `isaac` (Isaac Sim workflows)
 
-1. **Terraform** for infrastructure and runtime session control
-2. **Packer** for custom AMI creation
-3. **User-data + helper scripts** for boot-time sync and simulator startup
+The repo is split into:
+- `packer/`: builds the base AMI (Ubuntu + NVIDIA + DCV + Docker + ROS/Gazebo + Isaac tooling)
+- `terraform/`: provisions core infrastructure and controls runtime sessions
+- `userdata/`: instance bootstrap script
+- `scripts/`: helper scripts used by bootstrap/runtime
+- `docs/`: architecture notes and diagrams
 
-## What This System Does
+## Architecture
 
-- Builds and manages VPC, one public subnet, security groups, S3, IAM role/profile, launch templates, and SSM config parameters.
-- Runs one active simulation session declaratively through Terraform:
-  - `simulation_mode = "gazebo"` or `simulation_mode = "isaac"`
-  - `runtime_enabled = true|false`
-- Supports an optional Elastic IP.
-- Uses an Isaac EBS volume from snapshot when Isaac mode is active.
+High-level flow:
+1. Build a reusable AMI with Packer.
+2. Provision core infra with Terraform (VPC, subnet, SGs, IAM, S3, launch templates, SSM params).
+3. Start/stop a single runtime instance by flipping Terraform variables.
 
-### Isaac livestreaming security
+Runtime control:
+- `runtime_enabled = true|false`
+- `simulation_mode = "gazebo"|"isaac"`
 
-Isaac Sim streaming is **unauthenticated and unencrypted**. Configure **`trusted_client_cidr`** in Terraform to your client IP (e.g. `/32`), not the whole Internet. For public exposure, use **TLS + auth in front** (e.g. nginx) or **VPN/private network**. Details: `terraform/README.md`.
+In `isaac` mode, an EBS volume can be created from snapshot and attached/mounted at boot.
+
+More detail: `docs/architecture.md` and `docs/diagrams/network.mmd`.
 
 ## Prerequisites
 
-- Terraform 1.6+
-- AWS CLI configured with credentials and region access
-- Packer 1.10+
-- IAM permissions for EC2, VPC, IAM, S3, SSM, and EBS snapshots
+- AWS account and credentials configured locally
+- Terraform (recent 1.x)
+- Packer (>= 1.14)
 
-## Repo Layout
-
-```text
-robotics-aws/
-  README.md
-  .env.example
-  docs/
-    architecture.md
-  terraform/
-    README.md
-    providers.tf
-    variables.tf
-    locals.tf
-    core-network.tf
-    core-storage.tf
-    core-compute-definitions.tf
-    runtime.tf
-    outputs.tf
-    terraform.tfvars.example
-  packer/
-    ...
-  userdata/
-    bootstrap.sh
-```
-
-## Terraform Workflow
+## Quick start
 
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
-# set trusted_client_cidr, base_ami_id, and isaac_snapshot_id in terraform.tfvars
+```
+
+Set at least:
+- `trusted_client_cidr` (your IP/32 or office CIDR)
+- `base_ami_id`
+- `isaac_snapshot_id` (if using `isaac` mode)
+
+Then:
+
+```bash
 terraform init
-terraform plan
 terraform apply
 ```
 
-### Runtime Operations
+## Runtime operations
 
-Launch Gazebo runtime:
+Start Gazebo:
 
 ```bash
 terraform apply -var runtime_enabled=true -var simulation_mode=gazebo
 ```
 
-Launch Isaac runtime:
+Start Isaac:
 
 ```bash
 terraform apply -var runtime_enabled=true -var simulation_mode=isaac
 ```
 
-Terminate runtime:
+Stop runtime:
 
 ```bash
 terraform apply -var runtime_enabled=false
 ```
 
-Get connection details:
+Get endpoints:
 
 ```bash
-terraform output runtime_public_dns
-terraform output runtime_dcv_url
+terraform output
 ```
 
-## Build Base AMI (Packer)
+## Security notes
 
-```bash
-cd packer
-packer init .
-packer build \
-  -var "region=us-west-2" \
-  -var "source_ami_filter_name=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" \
-  -var "instance_type=g5.xlarge" \
-  robotics-base.pkr.hcl
-```
+- `trusted_client_cidr` is required; `0.0.0.0/0` is intentionally rejected.
+- SSH and DCV are restricted to the trusted CIDR.
+- Isaac streaming ports are also CIDR-restricted, but the stream itself is not authenticated/encrypted. Keep access private or put TLS/auth in front of it.
 
-Use the built AMI ID as `base_ami_id` in Terraform inputs.
+## AMI build
 
-## Architecture
-
-See `docs/architecture.md` for a compact system-level view.
+Base AMI build files live in `packer/` (`robotics-base.pkr.hcl` and vars files).  
+After building, use the resulting AMI ID as `base_ami_id` in `terraform.tfvars`.
