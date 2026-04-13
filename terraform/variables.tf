@@ -1,19 +1,19 @@
 variable "region" {
   description = "AWS region for infrastructure."
   type        = string
-  default     = "us-west-2"
+  default     = "us-east-1"
 }
 
 variable "project_name" {
   description = "Project name used in resource naming."
   type        = string
-  default     = "robotics-aws"
+  default     = "robotics-dev"
 }
 
 variable "parameter_prefix" {
   description = "SSM parameter prefix path."
   type        = string
-  default     = "/robotics-aws"
+  default     = "/robotics-dev"
 }
 
 variable "vpc_cidr" {
@@ -40,24 +40,6 @@ variable "trusted_client_cidr" {
   }
 }
 
-variable "bucket_name" {
-  description = "Optional fixed bucket name; empty lets AWS assign one."
-  type        = string
-  default     = ""
-}
-
-variable "gazebo_instance_types" {
-  description = "Allowed Gazebo spot instance types."
-  type        = list(string)
-  default     = ["g4dn.xlarge", "g5.xlarge"]
-}
-
-variable "isaac_instance_types" {
-  description = "Allowed Isaac spot instance types."
-  type        = list(string)
-  default     = ["g6e.xlarge", "g7e.xlarge"]
-}
-
 variable "gazebo_launch_template_instance_type" {
   description = "EC2 instance type used by the Gazebo launch template."
   type        = string
@@ -76,16 +58,22 @@ variable "root_volume_size_gib" {
   default     = 120
 }
 
+variable "isaac_data_volume_size_gib" {
+  description = "Size in GiB for the Isaac runtime data EBS volume when isaac_snapshot_id is empty."
+  type        = number
+  default     = 80
+}
+
 variable "base_ami_id" {
   description = "Base AMI for simulation launch templates."
   type        = string
-  default     = "ami-REPLACE-ME"
+  nullable    = false
 }
 
 variable "isaac_snapshot_id" {
-  description = "Snapshot used to create Isaac runtime volume."
+  description = "Optional snapshot used to create Isaac runtime volume. Empty creates a new empty volume."
   type        = string
-  default     = "snap-REPLACE-ME"
+  default     = ""
 }
 
 variable "s3_project_prefix" {
@@ -98,6 +86,18 @@ variable "workspace_path" {
   description = "Default local workspace path on simulation instances."
   type        = string
   default     = "/workspace/project"
+}
+
+variable "runtime_key_pair_name" {
+  description = "Optional existing EC2 key pair name for SSH access. Leave null to use SSM Session Manager only."
+  type        = string
+  default     = null
+}
+
+variable "runtime_private_key_path" {
+  description = "Path to the private SSH key file written in the local SSH drop-in config."
+  type        = string
+  default     = "~/.ssh/id_ed25519"
 }
 
 variable "runtime_enabled" {

@@ -2,21 +2,21 @@ locals {
   prefix = trimsuffix(var.parameter_prefix, "/")
 
   common_tags = {
-    Project  = var.project_name
+    Project   = var.project_name
     ManagedBy = "terraform"
-    Workload = "robotics-sim"
+    Workload  = "robotics-sim"
   }
 
+  s3_bucket_name = lower("${var.project_name}-${data.aws_caller_identity.current.account_id}-${var.region}")
+
   base_param_path = {
-    bucket_name              = "${local.prefix}/bucket-name"
-    base_ami_id              = "${local.prefix}/base-ami-id"
-    isaac_snapshot_id        = "${local.prefix}/isaac-snapshot-id"
-    project_prefix           = "${local.prefix}/config/project-prefix"
-    workspace_path           = "${local.prefix}/config/workspace-path"
-    gazebo_instance_types    = "${local.prefix}/config/gazebo-instance-types"
-    isaac_instance_types     = "${local.prefix}/config/isaac-instance-types"
-    isaac_webrtc_tcp_ports   = "${local.prefix}/config/isaac-webrtc-tcp-ports"
-    isaac_webrtc_udp_ports   = "${local.prefix}/config/isaac-webrtc-udp-ports"
+    bucket_name            = "${local.prefix}/bucket-name"
+    base_ami_id            = "${local.prefix}/base-ami-id"
+    isaac_snapshot_id      = "${local.prefix}/isaac-snapshot-id"
+    project_prefix         = "${local.prefix}/config/project-prefix"
+    workspace_path         = "${local.prefix}/config/workspace-path"
+    isaac_webrtc_tcp_ports = "${local.prefix}/config/isaac-webrtc-tcp-ports"
+    isaac_webrtc_udp_ports = "${local.prefix}/config/isaac-webrtc-udp-ports"
   }
 
   # Isaac Sim livestream: fixed SG + SSM documentation (TCP signaling 49100, TCP media 8210, UDP signaling 4799).
@@ -30,10 +30,15 @@ locals {
       protocol    = "tcp"
       description = "SSH (trusted client only)"
     }
-    dcv = {
+    dcv_tcp = {
       port        = 8443
       protocol    = "tcp"
-      description = "NICE DCV (trusted client only)"
+      description = "NICE DCV TCP (trusted client only)"
+    }
+    dcv_quic = {
+      port        = 8443
+      protocol    = "udp"
+      description = "NICE DCV QUIC UDP (trusted client only)"
     }
   }
 
@@ -57,7 +62,8 @@ locals {
 
   isaac_ingress_rules = merge(local.sim_ingress_admin, local.isaac_ingress_livestream)
 
+  runtime_public_ip            = var.runtime_enabled ? aws_instance.runtime[0].public_ip : null
   runtime_launch_template_name = var.simulation_mode == "isaac" ? aws_launch_template.isaac.name : aws_launch_template.gazebo.name
   runtime_security_group_id    = var.simulation_mode == "isaac" ? aws_security_group.isaac.id : aws_security_group.gazebo.id
-  runtime_instance_type        = var.simulation_mode == "isaac" ? var.isaac_instance_types[0] : var.gazebo_instance_types[0]
+  runtime_instance_type        = var.simulation_mode == "isaac" ? var.isaac_launch_template_instance_type : var.gazebo_launch_template_instance_type
 }

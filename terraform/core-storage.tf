@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "project" {
-  bucket = var.bucket_name
+  bucket = local.s3_bucket_name
 
   tags = merge(local.common_tags, {
     Name = "${var.project_name}-bucket"

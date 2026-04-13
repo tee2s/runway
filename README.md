@@ -10,7 +10,6 @@ The repo is split into:
 - `packer/`: builds the base AMI (Ubuntu + NVIDIA + DCV + Docker + ROS/Gazebo + Isaac tooling)
 - `terraform/`: provisions core infrastructure and controls runtime sessions
 - `userdata/`: instance bootstrap script
-- `scripts/`: helper scripts used by bootstrap/runtime
 - `docs/`: architecture notes and diagrams
 
 ## Architecture
@@ -44,7 +43,7 @@ cp terraform.tfvars.example terraform.tfvars
 Set at least:
 - `trusted_client_cidr` (your IP/32 or office CIDR)
 - `base_ami_id`
-- `isaac_snapshot_id` (if using `isaac` mode)
+- `isaac_snapshot_id` (optional for `isaac` mode; leave empty for a fresh volume)
 
 Then:
 
@@ -78,6 +77,8 @@ Get endpoints:
 ```bash
 terraform output
 ```
+
+When `runtime_enabled=true`, Terraform also writes a DCV connection file in `terraform/<project_name>.dcv` (for example `terraform/robotics-dev.dcv`) that you can open with `dcvviewer`.
 
 ## Security notes
 

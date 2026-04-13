@@ -2,8 +2,6 @@ resource "aws_instance" "runtime" {
   count = var.runtime_enabled ? 1 : 0
 
   subnet_id                   = aws_subnet.public.id
-  vpc_security_group_ids      = [local.runtime_security_group_id]
-  associate_public_ip_address = true
   instance_type               = local.runtime_instance_type
 
   launch_template {
@@ -22,7 +20,8 @@ resource "aws_ebs_volume" "isaac_runtime" {
   count = var.runtime_enabled && var.simulation_mode == "isaac" ? 1 : 0
 
   availability_zone = aws_instance.runtime[0].availability_zone
-  snapshot_id       = var.isaac_snapshot_id
+  snapshot_id       = trimspace(var.isaac_snapshot_id) != "" ? var.isaac_snapshot_id : null
+  size              = trimspace(var.isaac_snapshot_id) == "" ? var.isaac_data_volume_size_gib : null
   type              = "gp3"
   encrypted         = true
 

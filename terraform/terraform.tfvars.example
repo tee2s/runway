@@ -1,26 +1,26 @@
-region               = "us-west-2"
-project_name         = "robotics-aws"
-parameter_prefix     = "/robotics-aws"
+region               = "us-east-1"
+project_name         = "robotics-dev"
+parameter_prefix     = "/robotics-dev"
+# S3 bucket name is auto-derived as: <project_name>-<account_id>-<region>.
 vpc_cidr             = "10.42.0.0/16"
 # Your public IP /32 (or office CIDR). Required — 0.0.0.0/0 is rejected. See terraform/README.md for Isaac streaming security.
-trusted_client_cidr  = "203.0.113.50/32"
-bucket_name          = ""
-gazebo_launch_template_instance_type = "g5.xlarge"
-isaac_launch_template_instance_type  = "g6e.xlarge"
+trusted_client_cidr  = "76.36.228.147/32" 
+gazebo_launch_template_instance_type = "g6f.2xlarge"
+isaac_launch_template_instance_type  = "g6e.2xlarge"
 root_volume_size_gib = 120
-base_ami_id          = "ami-REPLACE-ME"
-isaac_snapshot_id    = "snap-REPLACE-ME"
+base_ami_id          = "ami-07a5aa2e86861df94"
+# Optional: set snap-... to restore Isaac data, or leave empty for a fresh volume.
+isaac_snapshot_id    = "snap-0dd030ad9fd06f6ac"
+# Used only when isaac_snapshot_id is empty.
+isaac_data_volume_size_gib = 80
+# the path in s3 under which the project data will be loaded from
 s3_project_prefix    = "project/"
+# where in the instance the project data should be loaded too
 workspace_path       = "/workspace/project"
+# Optional existing EC2 key pair name for SSH access.
+# Leave null to use SSM Session Manager only.
+runtime_key_pair_name = "tmac"
+# Local private key path used to update ssh profile ~/.ssh/config.d/<project_name>.
+runtime_private_key_path = "~/.ssh/tmac.pem"
 runtime_enabled      = false
-simulation_mode      = "gazebo"
-
-gazebo_instance_types = [
-  "g4dn.xlarge",
-  "g5.xlarge"
-]
-
-isaac_instance_types = [
-  "g6e.xlarge",
-  "g7e.xlarge"
-]
+simulation_mode      = "isaac"

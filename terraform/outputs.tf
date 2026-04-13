@@ -40,17 +40,17 @@ output "runtime_instance_id" {
 
 output "runtime_public_ip" {
   description = "Runtime public IP when enabled."
-  value       = var.runtime_enabled ? aws_instance.runtime[0].public_ip : null
+  value       = local.runtime_public_ip
 }
 
-output "runtime_public_dns" {
-  description = "Runtime public DNS when enabled."
-  value       = var.runtime_enabled ? aws_instance.runtime[0].public_dns : null
+output "runtime_dcv_console_address" {
+  description = "Runtime NICE DCV console address (public_ip:8443#console) when enabled."
+  value       = var.runtime_enabled ? format("%s:8443#console", local.runtime_public_ip) : null
 }
 
-output "runtime_dcv_url" {
-  description = "Runtime DCV URL when enabled."
-  value       = var.runtime_enabled ? "https://${aws_instance.runtime[0].public_dns}:8443" : null
+output "runtime_dcv_connection_file_path" {
+  description = "Local path to generated NICE DCV connection file (.dcv) when runtime is enabled."
+  value       = var.runtime_enabled ? local_file.runtime_dcv_connection_file[0].filename : null
 }
 
 output "isaac_runtime_volume_id" {

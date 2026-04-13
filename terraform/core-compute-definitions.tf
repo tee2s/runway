@@ -52,6 +52,11 @@ resource "aws_iam_role_policy" "sim_instance_inline" {
           "ssm:PutParameter"
         ]
         Resource = "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter${local.prefix}/*"
+      },
+      {
+        Effect = "Allow"
+        Action = "s3:GetObject"
+        Resource = "arn:aws:s3:::dcv-license.${var.region}/*"
       }
     ]
   })
@@ -67,6 +72,7 @@ resource "aws_launch_template" "gazebo" {
 
   image_id      = var.base_ami_id
   instance_type = var.gazebo_launch_template_instance_type
+  key_name      = var.runtime_key_pair_name
   user_data = base64encode(templatefile("${path.module}/templates/bootstrap.sh.tftpl", {
     mode               = "gazebo"
     project_prefix_param = local.base_param_path.project_prefix
@@ -125,6 +131,7 @@ resource "aws_launch_template" "isaac" {
 
   image_id      = var.base_ami_id
   instance_type = var.isaac_launch_template_instance_type
+  key_name      = var.runtime_key_pair_name
   user_data = base64encode(templatefile("${path.module}/templates/bootstrap.sh.tftpl", {
     mode               = "isaac"
     project_prefix_param = local.base_param_path.project_prefix
@@ -180,17 +187,19 @@ resource "aws_launch_template" "isaac" {
 }
 
 locals {
-  ssm_values = {
-    (local.base_param_path.bucket_name)            = aws_s3_bucket.project.bucket
-    (local.base_param_path.base_ami_id)            = var.base_ami_id
-    (local.base_param_path.isaac_snapshot_id)      = var.isaac_snapshot_id
-    (local.base_param_path.project_prefix)         = var.s3_project_prefix
-    (local.base_param_path.workspace_path)         = var.workspace_path
-    (local.base_param_path.gazebo_instance_types)  = join(",", var.gazebo_instance_types)
-    (local.base_param_path.isaac_instance_types)   = join(",", var.isaac_instance_types)
-    (local.base_param_path.isaac_webrtc_tcp_ports) = local.isaac_livestream_tcp_ports_ssm
-    (local.base_param_path.isaac_webrtc_udp_ports) = local.isaac_livestream_udp_ports_ssm
-  }
+  ssm_values = merge(
+    {
+      (local.base_param_path.bucket_name)            = aws_s3_bucket.project.bucket
+      (local.base_param_path.base_ami_id)            = var.base_ami_id
+      (local.base_param_path.project_prefix)         = var.s3_project_prefix
+      (local.base_param_path.workspace_path)         = var.workspace_path
+      (local.base_param_path.isaac_webrtc_tcp_ports) = local.isaac_livestream_tcp_ports_ssm
+      (local.base_param_path.isaac_webrtc_udp_ports) = local.isaac_livestream_udp_ports_ssm
+    },
+    trimspace(var.isaac_snapshot_id) != "" ? {
+      (local.base_param_path.isaac_snapshot_id) = var.isaac_snapshot_id
+    } : {}
+  )
 }
 
 resource "aws_ssm_parameter" "infra" {
