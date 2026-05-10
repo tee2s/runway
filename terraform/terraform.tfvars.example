@@ -5,7 +5,7 @@ parameter_prefix     = "/robotics-dev"
 vpc_cidr             = "10.42.0.0/16"
 # Your public IP /32 (or office CIDR). Required — 0.0.0.0/0 is rejected. See terraform/README.md for Isaac streaming security.
 trusted_client_cidr  = "76.36.228.147/32" 
-gazebo_launch_template_instance_type = "g6f.2xlarge"
+gazebo_launch_template_instance_type = "g4dn.2xlarge"
 isaac_launch_template_instance_type  = "g6e.2xlarge"
 root_volume_size_gib = 120
 base_ami_id          = "ami-07a5aa2e86861df94"
