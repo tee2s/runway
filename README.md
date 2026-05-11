@@ -7,7 +7,7 @@ Supports two runtime modes:
 - `isaac` (Isaac Sim workflows)
 
 The repo is split into:
-- `packer/`: builds the base AMI (Ubuntu + NVIDIA + DCV + Docker + ROS/Gazebo + Isaac tooling)
+- `packer/`: builds staged AMIs (GPU foundation, DCV/desktop, containers, simulation tooling, package overlay)
 - `terraform/`: provisions core infrastructure and controls runtime sessions
 - `userdata/`: instance bootstrap script
 - `docs/`: architecture notes and diagrams
@@ -88,5 +88,56 @@ When `runtime_enabled=true`, Terraform also writes a DCV connection file in `ter
 
 ## AMI build
 
-Base AMI build files live in `packer/` (`robotics-base.pkr.hcl` and vars files).  
-After building, use the resulting AMI ID as `base_ami_id` in `terraform.tfvars`.
+Packer builds are staged so package-only changes do not require rebuilding GPU drivers, DCV, Docker, ROS/Gazebo, and Isaac Sim from scratch.
+
+Shared Packer settings live in `packer/versions.pkr.hcl` and `packer/variables.pkr.hcl`, so build commands target the `packer/` directory and select one stage with `-only`.
+
+Initialize Packer plugins once:
+
+```bash
+packer init packer/
+```
+
+Standard NVIDIA chain:
+
+```bash
+# 1. Foundation: Ubuntu + AWS CLI + NVIDIA driver
+packer build -only=robotics-base-foundation.amazon-ebs.robotics_base -var-file=packer/robotics-base.pkrvars.hcl packer/
+
+# 2. Desktop/DCV
+packer build -only=robotics-dcv.amazon-ebs.robotics_dcv -var-file=packer/robotics-base.pkrvars.hcl packer/
+
+# 3. Containers
+packer build -only=robotics-containers.amazon-ebs.robotics_containers -var-file=packer/robotics-base.pkrvars.hcl packer/
+
+# 4. Simulation tooling
+packer build -only=robotics-simulation.amazon-ebs.robotics_simulation -var-file=packer/robotics-base.pkrvars.hcl packer/
+
+# 5. Final packages + login policy
+packer build -only=robotics-packages.amazon-ebs.robotics_packages -var-file=packer/robotics-base.pkrvars.hcl packer/
+```
+
+GRID chain:
+
+```bash
+# 1. Foundation: Ubuntu + AWS CLI + NVIDIA GRID driver
+packer build -only=robotics-base-grid-foundation.amazon-ebs.robotics_base_grid -var-file=packer/robotics-base-grid.pkrvars.hcl packer/
+
+# 2. Desktop/DCV
+packer build -only=robotics-dcv.amazon-ebs.robotics_dcv -var-file=packer/robotics-base-grid.pkrvars.hcl packer/
+
+# 3. Containers
+packer build -only=robotics-containers.amazon-ebs.robotics_containers -var-file=packer/robotics-base-grid.pkrvars.hcl packer/
+
+# 4. Simulation tooling
+packer build -only=robotics-simulation.amazon-ebs.robotics_simulation -var-file=packer/robotics-base-grid.pkrvars.hcl packer/
+
+# 5. Final packages + login policy
+packer build -only=robotics-packages.amazon-ebs.robotics_packages -var-file=packer/robotics-base-grid.pkrvars.hcl packer/
+```
+
+Each downstream stage selects the latest successful parent AMI by generated name plus `RoboticsStage` and `RoboticsVariant` tags. The final package stage runs `packer/scripts/install-packages.sh`, which currently installs Pixi. To add more final-stage package tooling, edit that script and rebuild only the package stage. To refresh the configured login password hash, edit the matching pipeline vars file and rebuild only the package stage.
+
+For package-only changes after the simulation AMI already exists, rerun only the final package command for the selected pipeline.
+
+After building the final package overlay AMI, use that AMI ID as `base_ami_id` in `terraform.tfvars`.

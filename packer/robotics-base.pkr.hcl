@@ -1,87 +1,8 @@
-packer {
-  required_version = ">= 1.14.0"
-
-  required_plugins {
-    amazon = {
-      version = "~> 1.8.0"
-      source  = "github.com/hashicorp/amazon"
-    }
-  }
-}
-
-variable "region" {
-  type    = string
-  default = "us-east-1"
-}
-
-variable "instance_type" {
-  type    = string
-  default = "g4dn.xlarge"
-}
-
-variable "root_volume_size" {
-  type    = number
-  default = 120
-}
-
-variable "source_ami_filter_name" {
-  type    = string
-  default = "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"
-}
-
-variable "ubuntu_distro_tag" {
-  type    = string
-  default = "ubuntu2404"
-}
-
-variable "ami_name_prefix" {
-  type    = string
-  default = "robotics-base"
-}
-
-variable "ssh_username" {
-  type    = string
-  default = "ubuntu"
-}
-
-variable "ubuntu_password_hash_parameter_name" {
-  type    = string
-  default = "ubuntu-default-password-hash"
-}
-
-variable "nvidia_driver_branch" {
-  type    = string
-  default = "580"
-}
-
-variable "nvidia_driver_version" {
-  type    = string
-  default = ""
-}
-
-variable "dcv_version" {
-  type    = string
-  default = ""
-}
-
-variable "nvidia_container_toolkit_version" {
-  type    = string
-  default = ""
-}
-
-variable "ros_distro" {
-  type    = string
-  default = "kilted"
-}
-
-variable "isaac_sim_package_url" {
-  type    = string
-  default = "https://downloads.isaacsim.nvidia.com/isaac-sim-standalone-5.1.0-linux-x86_64.zip"
-}
-
 locals {
-  timestamp = regex_replace(timestamp(), "[- TZ:]", "")
-  ami_name  = format("%s-%s", var.ami_name_prefix, local.timestamp)
+  base_timestamp = regex_replace(timestamp(), "[- TZ:]", "")
+  base_stage     = "foundation"
+  base_variant   = var.robotics_variant
+  base_ami_name  = format("%s-%s-%s", var.ami_name_prefix, local.base_stage, local.base_timestamp)
 }
 
 source "amazon-ebs" "robotics_base" {
@@ -100,8 +21,8 @@ source "amazon-ebs" "robotics_base" {
     owners      = ["099720109477"] # Canonical
   }
 
-  ami_name        = local.ami_name
-  ami_description = "Base AMI with NVIDIA driver, DCV, Docker, AWS CLI, ROS 2, Gazebo"
+  ami_name        = local.base_ami_name
+  ami_description = "Robotics foundation AMI with Ubuntu, AWS CLI, and NVIDIA driver"
 
   launch_block_device_mappings {
     device_name           = "/dev/sda1"
@@ -111,32 +32,34 @@ source "amazon-ebs" "robotics_base" {
   }
 
   tags = {
-    Name    = local.ami_name
-    Role    = var.ami_name_prefix
-    BuiltBy = "packer"
+    Name            = local.base_ami_name
+    Role            = var.ami_name_prefix
+    BuiltBy         = "packer"
+    RoboticsStage   = local.base_stage
+    RoboticsVariant = local.base_variant
   }
 
   run_tags = {
-    Name = "packer-build-robotics-base"
+    Name = "packer-build-robotics-base-foundation"
   }
 }
 
 build {
-  name    = "robotics-base"
+  name    = "robotics-base-foundation"
   sources = ["source.amazon-ebs.robotics_base"]
 
   provisioner "shell" {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive"
     ]
-    script = "scripts/setup-base.sh"
+    script = "packer/scripts/setup-base.sh"
   }
 
   provisioner "shell" {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive"
     ]
-    script = "scripts/install-awscli.sh"
+    script = "packer/scripts/install-awscli.sh"
   }
 
   provisioner "shell" {
@@ -146,7 +69,7 @@ build {
       "NVIDIA_DRIVER_BRANCH=${var.nvidia_driver_branch}",
       "NVIDIA_DRIVER_VERSION=${var.nvidia_driver_version}"
     ]
-    script = "scripts/nvidia/install-driver.sh"
+    script = "packer/scripts/nvidia/install-driver.sh"
   }
 
   provisioner "shell" {
@@ -161,103 +84,13 @@ build {
   }
 
   provisioner "shell" {
-    script = "scripts/nvidia/validate-driver.sh"
+    script = "packer/scripts/nvidia/validate-driver.sh"
   }
 
   provisioner "shell" {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive"
     ]
-    script = "scripts/dcv/install-desktop.sh"
-  }
-
-  provisioner "shell" {
-    expect_disconnect = true
-    inline            = ["sudo reboot"]
-  }
-
-  provisioner "shell" {
-    pause_before = "30s"
-    inline       = ["echo Desktop reboot complete"]
-  }
-
-  provisioner "shell" {
-    environment_vars = [
-      "DEBIAN_FRONTEND=noninteractive"
-    ]
-    script = "scripts/dcv/configure-display.sh"
-  }
-
-  provisioner "shell" {
-    environment_vars = [
-      "DEBIAN_FRONTEND=noninteractive",
-      "UBUNTU_DISTRO_TAG=${var.ubuntu_distro_tag}",
-      "DCV_VERSION=${var.dcv_version}"
-    ]
-    script = "scripts/dcv/install-dcv.sh"
-  }
-
-  provisioner "shell" {
-    environment_vars = [
-      "DEBIAN_FRONTEND=noninteractive"
-    ]
-    script = "scripts/dcv/validate-dcv.sh"
-  }
-
-  provisioner "shell" {
-    environment_vars = [
-      "PARAM_NAME=${var.ubuntu_password_hash_parameter_name}",
-      "REGION=${var.region}"
-    ]
-    inline = [
-      "UBUNTU_PASSWORD_HASH=$(aws ssm get-parameter --name \"$PARAM_NAME\" --with-decryption --region \"$REGION\" --query 'Parameter.Value' --output text)",
-      "sudo usermod --password \"$UBUNTU_PASSWORD_HASH\" ubuntu"
-    ]
-  }
-
-  provisioner "shell" {
-    inline = [
-      "sudo install -d -m 0755 /etc/ssh/sshd_config.d",
-      "printf '%s\\n' 'PasswordAuthentication no' 'KbdInteractiveAuthentication no' 'ChallengeResponseAuthentication no' | sudo tee /etc/ssh/sshd_config.d/99-password-auth-disabled.conf >/dev/null",
-      "sudo systemctl reload ssh || true"
-    ]
-  }
-
-  provisioner "shell" {
-    environment_vars = [
-      "DEBIAN_FRONTEND=noninteractive",
-      "NVIDIA_CONTAINER_TOOLKIT_VERSION=${var.nvidia_container_toolkit_version}"
-    ]
-    script = "scripts/install-docker.sh"
-  }
-
-  provisioner "shell" {
-    environment_vars = [
-      "DEBIAN_FRONTEND=noninteractive",
-      "ROS_DISTRO=${var.ros_distro}"
-    ]
-    script = "scripts/install-ros-gazebo.sh"
-  }
-
-  provisioner "shell" {
-    environment_vars = [
-      "DEBIAN_FRONTEND=noninteractive"
-    ]
-    script = "scripts/install-distrobox.sh"
-  }
-
-  provisioner "shell" {
-    environment_vars = [
-      "DEBIAN_FRONTEND=noninteractive",
-      "ISAAC_SIM_PACKAGE_URL=${var.isaac_sim_package_url}"
-    ]
-    script = "scripts/install-isaac-sim.sh"
-  }
-
-  provisioner "shell" {
-    environment_vars = [
-      "DEBIAN_FRONTEND=noninteractive"
-    ]
-    script = "scripts/cleanup.sh"
+    script = "packer/scripts/cleanup.sh"
   }
 }

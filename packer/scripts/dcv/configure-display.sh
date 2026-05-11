@@ -43,7 +43,7 @@ echo "[configure-display] Removing legacy X11 config if present..."
 sudo rm -f /etc/X11/XF86Config /etc/X11/XF86Config-*
 
 echo "[configure-display] Generating NVIDIA xorg.conf..."
-sudo nvidia-xconfig --preserve-busid --enable-all-gpus
+sudo nvidia-xconfig --enable-all-gpus --allow-empty-initial-configuration
 
 echo "[configure-display] Restarting display manager..."
 sudo systemctl restart gdm3

@@ -16,6 +16,7 @@ sudo apt-get update -y
 sudo apt-get install -y \
   gcc \
   make \
+  pciutils \
   linux-headers-$(uname -r) \
   linux-modules-extra-$(uname -r)
 

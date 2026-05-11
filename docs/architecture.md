@@ -19,7 +19,25 @@ The system uses a Terraform-centric two-layer model plus image build:
    - Optional EIP association while runtime is active
 
 3. **Image layer (Packer)**
-   - Ubuntu-based AMI with GPU tooling, DCV, Docker, ROS/Gazebo, and helper scripts
+   - Staged Ubuntu-based AMIs that separate GPU foundation work, DCV/desktop setup, containers, simulation tooling, and package-only overlays
+
+## Image Build Stages
+
+Packer builds AMIs as a chain. The standard and GRID foundation templates start from Canonical Ubuntu and preserve their driver-specific reboot order. A shared DCV stage installs the desktop and Amazon DCV on top of that foundation. Later shared stages select the latest successful parent AMI using generated names plus `RoboticsStage` and `RoboticsVariant` tags. Shared plugin and variable definitions live in `packer/versions.pkr.hcl` and `packer/variables.pkr.hcl`, so stage builds target the `packer/` directory with `-only`.
+
+```mermaid
+flowchart LR
+  Ubuntu["Canonical Ubuntu 24.04"] --> StandardFoundation["standard foundation: NVIDIA"]
+  Ubuntu --> GridFoundation["GRID foundation: GRID driver"]
+  StandardFoundation --> Dcv["DCV: desktop + Amazon DCV"]
+  GridFoundation --> Dcv
+  Dcv --> Containers["containers: Docker + NVIDIA toolkit + Distrobox"]
+  Containers --> Simulation["simulation: ROS + Gazebo + Isaac Sim"]
+  Simulation --> Packages["packages: final apt overlay"]
+  Packages --> Runtime["Terraform base_ami_id"]
+```
+
+Each pipeline has one vars file: `packer/robotics-base.pkrvars.hcl` for standard NVIDIA and `packer/robotics-base-grid.pkrvars.hcl` for GRID. Package-tooling changes should be made in the final package stage by editing `packer/scripts/install-packages.sh`, which currently installs Pixi. Login-policy changes stay in the relevant pipeline vars file. The package stage starts from the latest simulation AMI, runs the package tooling script, applies the configured password hash and SSH login policy, runs cleanup, and produces the AMI ID used by Terraform.
 
 ## Runtime Control
 
