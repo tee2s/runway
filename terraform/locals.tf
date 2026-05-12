@@ -62,8 +62,26 @@ locals {
 
   isaac_ingress_rules = merge(local.sim_ingress_admin, local.isaac_ingress_livestream)
 
-  runtime_public_ip            = var.runtime_enabled ? aws_instance.runtime[0].public_ip : null
+  runtime_instance_types       = var.simulation_mode == "isaac" ? var.isaac_launch_template_instance_types : var.gazebo_launch_template_instance_types
   runtime_launch_template_name = var.simulation_mode == "isaac" ? aws_launch_template.isaac.name : aws_launch_template.gazebo.name
+  runtime_launch_template_id   = var.simulation_mode == "isaac" ? aws_launch_template.isaac.id : aws_launch_template.gazebo.id
   runtime_security_group_id    = var.simulation_mode == "isaac" ? aws_security_group.isaac.id : aws_security_group.gazebo.id
-  runtime_instance_type        = var.simulation_mode == "isaac" ? var.isaac_launch_template_instance_type : var.gazebo_launch_template_instance_type
+  runtime_subnet_ids           = [for subnet in aws_subnet.public : subnet.id]
+  runtime_fleet_overrides = flatten([
+    for instance_type in local.runtime_instance_types : [
+      for subnet_id in local.runtime_subnet_ids : {
+        instance_type = instance_type
+        subnet_id     = subnet_id
+      }
+    ]
+  ])
+  runtime_fleet_instance_ids = var.runtime_enabled ? flatten([
+    for instance_set in aws_ec2_fleet.runtime[0].fleet_instance_set : instance_set.instance_ids
+  ]) : []
+  runtime_instance_id       = try(one(local.runtime_fleet_instance_ids), null)
+  runtime_instance_type     = try(data.aws_instance.runtime[0].instance_type, null)
+  runtime_public_ip         = try(data.aws_instance.runtime[0].public_ip, null)
+  runtime_availability_zone = try(data.aws_instance.runtime[0].availability_zone, null)
+
+  ubuntu_password_hash_parameter_arn_name = trimprefix(var.ubuntu_password_hash_parameter_name, "/")
 }

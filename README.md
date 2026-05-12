@@ -16,12 +16,13 @@ The repo is split into:
 
 High-level flow:
 1. Build a reusable AMI with Packer.
-2. Provision core infra with Terraform (VPC, subnet, SGs, IAM, S3, launch templates, SSM params).
-3. Start/stop a single runtime instance by flipping Terraform variables.
+2. Provision core infra with Terraform (VPC, public subnets in every region AZ, SGs, IAM, S3, launch templates, SSM params).
+3. Start/stop a single runtime instance through EC2 Fleet by flipping Terraform variables.
 
 Runtime control:
 - `runtime_enabled = true|false`
 - `simulation_mode = "gazebo"|"isaac"`
+- `gazebo_launch_template_instance_types` and `isaac_launch_template_instance_types` provide EC2 Fleet candidate GPU shapes.
 
 In `isaac` mode, an EBS volume can be created from snapshot and attached/mounted at boot.
 
@@ -78,7 +79,7 @@ Get endpoints:
 terraform output
 ```
 
-When `runtime_enabled=true`, Terraform also writes a DCV connection file in `terraform/<project_name>.dcv` (for example `terraform/robotics-dev.dcv`) that you can open with `dcvviewer`.
+When `runtime_enabled=true`, Terraform launches the runtime through EC2 Fleet using Spot `price-capacity-optimized` placement across every public subnet and configured candidate instance type for the selected mode. Terraform also writes a DCV connection file in `~/.config/dcv/<project_name>.dcv` (for example `~/.config/dcv/robotics-dev.dcv`) that you can open with `dcvviewer`.
 
 ## Security notes
 
@@ -136,7 +137,7 @@ packer build -only=robotics-simulation.amazon-ebs.robotics_simulation -var-file=
 packer build -only=robotics-packages.amazon-ebs.robotics_packages -var-file=packer/robotics-base-grid.pkrvars.hcl packer/
 ```
 
-Each downstream stage selects the latest successful parent AMI by generated name plus `RoboticsStage` and `RoboticsVariant` tags. The final package stage runs `packer/scripts/install-packages.sh`, which currently installs Pixi. To add more final-stage package tooling, edit that script and rebuild only the package stage. To refresh the configured login password hash, edit the matching pipeline vars file and rebuild only the package stage.
+Each downstream stage selects the latest successful parent AMI by generated name plus `RoboticsStage` and `RoboticsVariant` tags. The final package stage runs `packer/scripts/install-packages.sh`, which currently installs Pixi, and applies the SSH password-authentication policy. To add more final-stage package tooling, edit that script and rebuild only the package stage. The Ubuntu password hash is applied at runtime by Terraform bootstrap from the SSM parameter configured as `ubuntu_password_hash_parameter_name`.
 
 For package-only changes after the simulation AMI already exists, rerun only the final package command for the selected pipeline.
 

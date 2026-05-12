@@ -34,18 +34,24 @@ resource "aws_route_table" "public" {
 }
 
 resource "aws_subnet" "public" {
+  for_each = {
+    for index, name in data.aws_availability_zones.available.names : tostring(index) => name
+  }
+
   vpc_id                  = aws_vpc.main.id
-  availability_zone       = data.aws_availability_zones.available.names[0]
-  cidr_block              = cidrsubnet(var.vpc_cidr, 8, 0)
+  availability_zone       = each.value
+  cidr_block              = cidrsubnet(var.vpc_cidr, 8, tonumber(each.key))
   map_public_ip_on_launch = true
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-public"
+    Name = "${var.project_name}-public-${each.value}"
   })
 }
 
 resource "aws_route_table_association" "public" {
-  subnet_id      = aws_subnet.public.id
+  for_each = aws_subnet.public
+
+  subnet_id      = each.value.id
   route_table_id = aws_route_table.public.id
 }
 

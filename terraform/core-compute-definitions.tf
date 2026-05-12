@@ -1,8 +1,8 @@
 data "aws_caller_identity" "current" {}
 
 resource "aws_iam_role" "sim_instance" {
-  name               = "${var.project_name}-sim-instance-role"
-  description        = "Role for robotics simulation instances"
+  name        = "${var.project_name}-sim-instance-role"
+  description = "Role for robotics simulation instances"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -54,8 +54,24 @@ resource "aws_iam_role_policy" "sim_instance_inline" {
         Resource = "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter${local.prefix}/*"
       },
       {
-        Effect = "Allow"
-        Action = "s3:GetObject"
+        Effect   = "Allow"
+        Action   = "ssm:GetParameter"
+        Resource = "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${local.ubuntu_password_hash_parameter_arn_name}"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "kms:Decrypt"
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "kms:CallerAccount" = data.aws_caller_identity.current.account_id
+            "kms:ViaService"    = "ssm.${var.region}.amazonaws.com"
+          }
+        }
+      },
+      {
+        Effect   = "Allow"
+        Action   = "s3:GetObject"
         Resource = "arn:aws:s3:::dcv-license.${var.region}/*"
       }
     ]
@@ -70,14 +86,14 @@ resource "aws_iam_instance_profile" "sim_instance" {
 resource "aws_launch_template" "gazebo" {
   name = "${var.project_name}-gazebo-lt"
 
-  image_id      = var.base_ami_id
-  instance_type = var.gazebo_launch_template_instance_type
-  key_name      = var.runtime_key_pair_name
+  image_id = var.base_ami_id
+  key_name = var.runtime_key_pair_name
   user_data = base64encode(templatefile("${path.module}/templates/bootstrap.sh.tftpl", {
-    mode               = "gazebo"
-    project_prefix_param = local.base_param_path.project_prefix
-    workspace_param    = local.base_param_path.workspace_path
-    bucket_param       = local.base_param_path.bucket_name
+    mode                       = "gazebo"
+    project_prefix_param       = local.base_param_path.project_prefix
+    workspace_param            = local.base_param_path.workspace_path
+    bucket_param               = local.base_param_path.bucket_name
+    ubuntu_password_hash_param = var.ubuntu_password_hash_parameter_name
   }))
 
   iam_instance_profile {
@@ -87,14 +103,6 @@ resource "aws_launch_template" "gazebo" {
   metadata_options {
     http_endpoint = "enabled"
     http_tokens   = "required"
-  }
-
-  instance_market_options {
-    market_type = "spot"
-    spot_options {
-      instance_interruption_behavior = "terminate"
-      spot_instance_type             = "one-time"
-    }
   }
 
   block_device_mappings {
@@ -112,7 +120,9 @@ resource "aws_launch_template" "gazebo" {
   tag_specifications {
     resource_type = "instance"
     tags = merge(local.common_tags, {
+      Name = "${var.project_name}-gazebo-runtime"
       Mode = "gazebo"
+      Role = "runtime"
     })
   }
 
@@ -129,14 +139,14 @@ resource "aws_launch_template" "gazebo" {
 resource "aws_launch_template" "isaac" {
   name = "${var.project_name}-isaac-lt"
 
-  image_id      = var.base_ami_id
-  instance_type = var.isaac_launch_template_instance_type
-  key_name      = var.runtime_key_pair_name
+  image_id = var.base_ami_id
+  key_name = var.runtime_key_pair_name
   user_data = base64encode(templatefile("${path.module}/templates/bootstrap.sh.tftpl", {
-    mode               = "isaac"
-    project_prefix_param = local.base_param_path.project_prefix
-    workspace_param    = local.base_param_path.workspace_path
-    bucket_param       = local.base_param_path.bucket_name
+    mode                       = "isaac"
+    project_prefix_param       = local.base_param_path.project_prefix
+    workspace_param            = local.base_param_path.workspace_path
+    bucket_param               = local.base_param_path.bucket_name
+    ubuntu_password_hash_param = var.ubuntu_password_hash_parameter_name
   }))
 
   iam_instance_profile {
@@ -146,14 +156,6 @@ resource "aws_launch_template" "isaac" {
   metadata_options {
     http_endpoint = "enabled"
     http_tokens   = "required"
-  }
-
-  instance_market_options {
-    market_type = "spot"
-    spot_options {
-      instance_interruption_behavior = "terminate"
-      spot_instance_type             = "one-time"
-    }
   }
 
   block_device_mappings {
@@ -172,7 +174,9 @@ resource "aws_launch_template" "isaac" {
   tag_specifications {
     resource_type = "instance"
     tags = merge(local.common_tags, {
+      Name = "${var.project_name}-isaac-runtime"
       Mode = "isaac"
+      Role = "runtime"
     })
   }
 

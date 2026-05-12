@@ -38,11 +38,6 @@ variable "ssh_username" {
   default = "ubuntu"
 }
 
-variable "ubuntu_password_hash_parameter_name" {
-  type    = string
-  default = "ubuntu-default-password-hash"
-}
-
 variable "iam_instance_profile" {
   type    = string
   default = ""

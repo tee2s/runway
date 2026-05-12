@@ -1,0 +1,12 @@
+[version]
+format=1.0
+
+[connect]
+host=54.160.162.191
+port=8443
+sessionid=console
+user=ubuntu
+password=ella
+proxytype=DIRECT
+transport=auto
+certificatevalidationpolicy=accept-untrusted

@@ -5,6 +5,7 @@ MODE="${mode}"
 PROJECT_PREFIX_PARAM="${project_prefix_param}"
 WORKSPACE_PARAM="${workspace_param}"
 BUCKET_PARAM="${bucket_param}"
+UBUNTU_PASSWORD_HASH_PARAM="${ubuntu_password_hash_param}"
 
 LOG_FILE="/var/log/robotics-bootstrap.log"
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -36,7 +37,20 @@ get_param() {
   aws ssm get-parameter --name "$name" --query 'Parameter.Value' --output text
 }
 
+get_secure_param() {
+  local name="$1"
+  aws ssm get-parameter --name "$name" --with-decryption --query 'Parameter.Value' --output text
+}
+
+configure_ubuntu_password() {
+  local password_hash
+  password_hash="$(get_secure_param "$UBUNTU_PASSWORD_HASH_PARAM")"
+  usermod --password "$password_hash" ubuntu
+}
+
 mkdir -p /workspace/project /mnt/assets /mnt/isaac
+
+configure_ubuntu_password
 
 BUCKET="$(get_param "$BUCKET_PARAM")"
 PROJECT_PREFIX="$(get_param "$PROJECT_PREFIX_PARAM")"

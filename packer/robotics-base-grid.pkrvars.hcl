@@ -7,9 +7,6 @@ ami_name_prefix        = "robotics-base-grid"
 robotics_variant       = "grid"
 ssh_username           = "ubuntu"
 
-# Make sure the variable exists in the ParameterStore otherwise create it by running create-ubuntu-password.sh
-ubuntu_password_hash_parameter_name = "ubuntu-default-password-hash"
-
 # Packer Build Instance needs access to s3 Bucket for Nvidia Grid/vGPU Driver Download
 iam_instance_profile = "packer-build-instance-profile"
 

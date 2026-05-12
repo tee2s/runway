@@ -1,25 +1,56 @@
-resource "aws_instance" "runtime" {
+resource "aws_ec2_fleet" "runtime" {
   count = var.runtime_enabled ? 1 : 0
 
-  subnet_id                   = aws_subnet.public.id
-  instance_type               = local.runtime_instance_type
+  type                = "instant"
+  terminate_instances = true
 
-  launch_template {
-    name    = local.runtime_launch_template_name
-    version = "$Latest"
+  launch_template_config {
+    launch_template_specification {
+      launch_template_id = local.runtime_launch_template_id
+      version            = "$Latest"
+    }
+
+    dynamic "override" {
+      for_each = local.runtime_fleet_overrides
+
+      content {
+        instance_type = override.value.instance_type
+        subnet_id     = override.value.subnet_id
+      }
+    }
+  }
+
+  target_capacity_specification {
+    default_target_capacity_type = "spot"
+    total_target_capacity        = 1
+  }
+
+  spot_options {
+    allocation_strategy            = "price-capacity-optimized"
+    instance_interruption_behavior = "terminate"
+    min_target_capacity            = 1
+    single_availability_zone       = true
   }
 
   tags = merge(local.common_tags, {
-    Name = "${var.project_name}-${var.simulation_mode}-runtime"
+    Name = "${var.project_name}-${var.simulation_mode}-runtime-fleet"
     Mode = var.simulation_mode
-    Role = "runtime"
+    Role = "runtime-fleet"
   })
+}
+
+data "aws_instance" "runtime" {
+  count = var.runtime_enabled ? 1 : 0
+
+  instance_id = local.runtime_instance_id
+
+  depends_on = [aws_ec2_fleet.runtime]
 }
 
 resource "aws_ebs_volume" "isaac_runtime" {
   count = var.runtime_enabled && var.simulation_mode == "isaac" ? 1 : 0
 
-  availability_zone = aws_instance.runtime[0].availability_zone
+  availability_zone = local.runtime_availability_zone
   snapshot_id       = trimspace(var.isaac_snapshot_id) != "" ? var.isaac_snapshot_id : null
   size              = trimspace(var.isaac_snapshot_id) == "" ? var.isaac_data_volume_size_gib : null
   type              = "gp3"
@@ -35,5 +66,5 @@ resource "aws_volume_attachment" "isaac_runtime" {
 
   device_name = "/dev/sdf"
   volume_id   = aws_ebs_volume.isaac_runtime[0].id
-  instance_id = aws_instance.runtime[0].id
+  instance_id = local.runtime_instance_id
 }

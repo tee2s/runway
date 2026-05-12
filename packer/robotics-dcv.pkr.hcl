@@ -98,6 +98,13 @@ build {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive"
     ]
+    script = "packer/scripts/dcv/install-runtime-xorg-regeneration.sh"
+  }
+
+  provisioner "shell" {
+    environment_vars = [
+      "DEBIAN_FRONTEND=noninteractive"
+    ]
     script = "packer/scripts/cleanup.sh"
   }
 }

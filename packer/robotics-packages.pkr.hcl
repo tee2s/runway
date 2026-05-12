@@ -63,11 +63,6 @@ build {
   }
 
   provisioner "shell" {
-    environment_vars = [
-      "PARAM_NAME=${var.ubuntu_password_hash_parameter_name}",
-      "REGION=${var.region}",
-      "SSH_USERNAME=${var.ssh_username}"
-    ]
     script = "packer/scripts/configure-login.sh"
   }
 

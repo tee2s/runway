@@ -15,7 +15,7 @@ resource "local_file" "runtime_ssh_config" {
 resource "local_file" "runtime_dcv_connection_file" {
   count = var.runtime_enabled ? 1 : 0
 
-  filename = "${path.root}/${var.project_name}.dcv"
+  filename = pathexpand("~/.config/dcv/${var.project_name}.dcv")
 
   content = <<-EOT
   [version]

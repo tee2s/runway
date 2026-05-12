@@ -1,13 +1,12 @@
-region                              = "us-east-1"
-instance_type                       = "g4dn.xlarge"
-root_volume_size                    = 120
-source_ami_filter_name              = "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"
-ubuntu_distro_tag                   = "ubuntu2404"
-ami_name_prefix                     = "robotics-base"
-robotics_variant                    = "standard"
-ssh_username                        = "ubuntu"
-ubuntu_password_hash_parameter_name = "ubuntu-default-password-hash"
-iam_instance_profile                = "packer-build-instance-profile"
+region                 = "us-east-1"
+instance_type          = "g4dn.xlarge"
+root_volume_size       = 120
+source_ami_filter_name = "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"
+ubuntu_distro_tag      = "ubuntu2404"
+ami_name_prefix        = "robotics-base"
+robotics_variant       = "standard"
+ssh_username           = "ubuntu"
+iam_instance_profile   = "packer-build-instance-profile"
 
 # Optional NVIDIA driver selection.
 # If both are left empty, the installer will use the latest driver available from the enabled NVIDIA repo,

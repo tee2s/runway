@@ -1,5 +1,5 @@
 # IAM for Packer grid image builds only: instance profile + role with read access to
-# s3://ec2-linux-nvidia-drivers and the SecureString SSM parameter for the ubuntu password hash.
+# s3://ec2-linux-nvidia-drivers.
 #
 # Apply from repo root:
 #   terraform -chdir=packer/terraform init
@@ -45,21 +45,6 @@ data "aws_iam_policy_document" "packer_build_instance_s3_drivers" {
     effect    = "Allow"
     actions   = ["s3:GetObject"]
     resources = ["arn:aws:s3:::ec2-linux-nvidia-drivers/*"]
-  }
-
-  statement {
-    sid       = "ReadUbuntuPasswordHashParameter"
-    effect    = "Allow"
-    actions   = ["ssm:GetParameter"]
-    resources = ["*"]
-  }
-
-  # Required for --with-decryption when the SSM parameter is a SecureString.
-  statement {
-    sid       = "DecryptViaSsm"
-    effect    = "Allow"
-    actions   = ["kms:Decrypt"]
-    resources = ["*"]
   }
 }
 

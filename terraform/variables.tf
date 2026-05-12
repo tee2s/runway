@@ -40,16 +40,26 @@ variable "trusted_client_cidr" {
   }
 }
 
-variable "gazebo_launch_template_instance_type" {
-  description = "EC2 instance type used by the Gazebo launch template."
-  type        = string
-  default     = "g5.xlarge"
+variable "gazebo_launch_template_instance_types" {
+  description = "Candidate EC2 instance types used by EC2 Fleet for Gazebo runtime sessions."
+  type        = list(string)
+  default     = ["g5.xlarge"]
+
+  validation {
+    condition     = length(var.gazebo_launch_template_instance_types) > 0
+    error_message = "gazebo_launch_template_instance_types must include at least one instance type."
+  }
 }
 
-variable "isaac_launch_template_instance_type" {
-  description = "EC2 instance type used by the Isaac launch template."
-  type        = string
-  default     = "g6e.xlarge"
+variable "isaac_launch_template_instance_types" {
+  description = "Candidate EC2 instance types used by EC2 Fleet for Isaac runtime sessions."
+  type        = list(string)
+  default     = ["g6e.xlarge"]
+
+  validation {
+    condition     = length(var.isaac_launch_template_instance_types) > 0
+    error_message = "isaac_launch_template_instance_types must include at least one instance type."
+  }
 }
 
 variable "root_volume_size_gib" {
@@ -86,6 +96,12 @@ variable "workspace_path" {
   description = "Default local workspace path on simulation instances."
   type        = string
   default     = "/workspace/project"
+}
+
+variable "ubuntu_password_hash_parameter_name" {
+  description = "SSM SecureString parameter containing the hashed password for the default ubuntu user."
+  type        = string
+  default     = "/ubuntu-default-password-hash"
 }
 
 variable "runtime_key_pair_name" {

@@ -12,6 +12,9 @@ sudo rm -rf /var/lib/apt/lists/*
 echo "[cleanup] Cleaning temporary directories..."
 sudo rm -rf /tmp/* /var/tmp/*
 
+echo "[cleanup] Removing stale crash reports..."
+sudo rm -rf /var/crash/*
+
 echo "[cleanup] Clearing common user/system caches..."
 sudo rm -rf /root/.cache/*
 if id ubuntu >/dev/null 2>&1; then

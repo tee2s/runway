@@ -19,6 +19,48 @@ sudo apt-get install -y \
   xorg \
   mesa-utils
 
+echo "[install-desktop] Disabling Ubuntu/GNOME first-run setup..."
+
+# Remove first-run / welcome packages if they are installed.
+# - gnome-initial-setup: GNOME first-login wizard
+# - ubuntu-desktop-bootstrap: Ubuntu welcome/bootstrap flow
+# - ubuntu-report: Ubuntu telemetry/reporting prompt
+# - fwupd: firmware update daemon, not useful on EC2 and can crash during desktop login
+sudo apt-get remove -y \
+  gnome-initial-setup \
+  ubuntu-desktop-bootstrap \
+  ubuntu-report \
+  fwupd || true
+sudo apt-get purge -y fwupd || true
+
+# Remove system-wide GUI autostart entries that can launch welcome/setup apps
+# when a GNOME/DCV desktop session starts.
+sudo rm -f \
+  /etc/xdg/autostart/gnome-initial-setup-first-login.desktop \
+  /etc/xdg/autostart/gnome-initial-setup.desktop \
+  /etc/xdg/autostart/ubuntu-welcome.desktop \
+  /etc/xdg/autostart/ubuntu-desktop-bootstrap.desktop
+
+# Mask the GNOME initial setup systemd service if it exists.
+# Masking is stronger than disabling and prevents accidental startup.
+sudo systemctl mask gnome-initial-setup.service 2>/dev/null || true
+
+# Create GNOME config directories for the default ubuntu user
+# and for future users created from /etc/skel.
+sudo mkdir -p \
+  /home/ubuntu/.config \
+  /etc/skel/.config
+
+# Mark GNOME initial setup as already completed for the ubuntu user.
+sudo touch /home/ubuntu/.config/gnome-initial-setup-done
+
+# Mark GNOME initial setup as completed for future users copied from /etc/skel.
+sudo touch /etc/skel/.config/gnome-initial-setup-done
+
+# Ensure the ubuntu user owns their config directory, since the files above
+# were created with sudo and might otherwise be root-owned.
+sudo chown -R ubuntu:ubuntu /home/ubuntu/.config
+
 echo "[install-desktop] Ensuring nvidia-xconfig is available..."
 if command -v nvidia-xconfig >/dev/null 2>&1; then
   echo "[install-desktop] Found nvidia-xconfig at $(command -v nvidia-xconfig)"

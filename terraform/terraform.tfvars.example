@@ -5,8 +5,8 @@ parameter_prefix     = "/robotics-dev"
 vpc_cidr             = "10.42.0.0/16"
 # Your public IP /32 (or office CIDR). Required — 0.0.0.0/0 is rejected. See terraform/README.md for Isaac streaming security.
 trusted_client_cidr  = "76.36.228.147/32" 
-gazebo_launch_template_instance_type = "g4dn.2xlarge"
-isaac_launch_template_instance_type  = "g6e.2xlarge"
+gazebo_launch_template_instance_types = ["g6f.xlarge", "g6f.2xlarge", "g4dn.xlarge", "g4dn.2xlarge", "g6.4xlarge", "g6f.4xlarge"]
+isaac_launch_template_instance_types  = ["g6e.2xlarge", "g6.2xlarge", "g5.2xlarge"]
 root_volume_size_gib = 120
 base_ami_id          = "ami-07a5aa2e86861df94"
 # Optional: set snap-... to restore Isaac data, or leave empty for a fresh volume.
@@ -17,6 +17,8 @@ isaac_data_volume_size_gib = 80
 s3_project_prefix    = "project/"
 # where in the instance the project data should be loaded too
 workspace_path       = "/workspace/project"
+# SSM SecureString created by scripts/create-ubuntu-password.sh.
+ubuntu_password_hash_parameter_name = "/ubuntu-default-password-hash"
 # Optional existing EC2 key pair name for SSH access.
 # Leave null to use SSM Session Manager only.
 runtime_key_pair_name = "tmac"

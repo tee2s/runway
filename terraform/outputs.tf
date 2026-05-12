@@ -4,8 +4,8 @@ output "vpc_id" {
 }
 
 output "public_subnet_ids" {
-  description = "Public subnet ID(s) used for runtime sessions (single-AZ workstation layout)."
-  value       = [aws_subnet.public.id]
+  description = "Public subnet IDs used for runtime sessions across all available AZs."
+  value       = [for subnet in aws_subnet.public : subnet.id]
 }
 
 output "bucket_name" {
@@ -35,7 +35,12 @@ output "isaac_launch_template_name" {
 
 output "runtime_instance_id" {
   description = "Current runtime instance ID when enabled."
-  value       = var.runtime_enabled ? aws_instance.runtime[0].id : null
+  value       = local.runtime_instance_id
+}
+
+output "runtime_instance_type" {
+  description = "EC2 instance type of the runtime instance when enabled."
+  value       = local.runtime_instance_type
 }
 
 output "runtime_public_ip" {

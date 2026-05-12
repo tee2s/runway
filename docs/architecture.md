@@ -37,7 +37,7 @@ flowchart LR
   Packages --> Runtime["Terraform base_ami_id"]
 ```
 
-Each pipeline has one vars file: `packer/robotics-base.pkrvars.hcl` for standard NVIDIA and `packer/robotics-base-grid.pkrvars.hcl` for GRID. Package-tooling changes should be made in the final package stage by editing `packer/scripts/install-packages.sh`, which currently installs Pixi. Login-policy changes stay in the relevant pipeline vars file. The package stage starts from the latest simulation AMI, runs the package tooling script, applies the configured password hash and SSH login policy, runs cleanup, and produces the AMI ID used by Terraform.
+Each pipeline has one vars file: `packer/robotics-base.pkrvars.hcl` for standard NVIDIA and `packer/robotics-base-grid.pkrvars.hcl` for GRID. Package-tooling changes should be made in the final package stage by editing `packer/scripts/install-packages.sh`, which currently installs Pixi. The package stage starts from the latest simulation AMI, runs the package tooling script, applies the SSH password-authentication policy, runs cleanup, and produces the AMI ID used by Terraform. Terraform bootstrap applies the Ubuntu password hash at launch from the SSM parameter configured as `ubuntu_password_hash_parameter_name`.
 
 ## Runtime Control
 
