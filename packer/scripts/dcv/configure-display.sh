@@ -9,32 +9,14 @@ set -euo pipefail
 
 export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
 
-echo "[configure-display] Disabling Wayland..."
+echo "[configure-display] Writing GDM3 config (disable Wayland, enable auto-login)..."
 sudo mkdir -p /etc/gdm3
-
-if [[ ! -f /etc/gdm3/custom.conf ]]; then
-  cat <<'EOF' | sudo tee /etc/gdm3/custom.conf >/dev/null
+cat <<'EOF' | sudo tee /etc/gdm3/custom.conf >/dev/null
 [daemon]
 WaylandEnable=false
+AutomaticLoginEnable=true
+AutomaticLogin=ubuntu
 EOF
-elif grep -q '^[#[:space:]]*WaylandEnable=' /etc/gdm3/custom.conf; then
-  sudo sed -i 's/^[#[:space:]]*WaylandEnable=.*/WaylandEnable=false/' /etc/gdm3/custom.conf
-else
-  if grep -q '^\[daemon\]' /etc/gdm3/custom.conf; then
-    sudo awk '
-      BEGIN {done=0}
-      /^\[daemon\]/ {print; print "WaylandEnable=false"; done=1; next}
-      {print}
-      END {if (!done) print "[daemon]\nWaylandEnable=false"}
-    ' /etc/gdm3/custom.conf | sudo tee /etc/gdm3/custom.conf.tmp >/dev/null
-    sudo mv /etc/gdm3/custom.conf.tmp /etc/gdm3/custom.conf
-  else
-    cat <<'EOF' | sudo tee /etc/gdm3/custom.conf >/dev/null
-[daemon]
-WaylandEnable=false
-EOF
-  fi
-fi
 
 echo "[configure-display] Setting graphical.target as default..."
 sudo systemctl set-default graphical.target

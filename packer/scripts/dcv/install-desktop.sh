@@ -81,5 +81,8 @@ fi
 echo "[install-desktop] Upgrading packages as part of desktop setup..."
 sudo apt-get upgrade -y
 
+echo "[install-desktop] Masking systemd-networkd-wait-online (redundant on NetworkManager instances)..."
+sudo systemctl mask systemd-networkd-wait-online.service
+
 echo "[install-desktop] Desktop installation complete."
 echo "[install-desktop] Reboot required before continuing."

@@ -16,41 +16,64 @@ PASSWORD="$(security find-generic-password \
   -s "$SERVICE_NAME" \
   -w)"
 
+if [[ ! -f "$BASE_DCV_FILE" ]]; then
+  printf "  \033[31m✗\033[0m No instance running — launch one first.\n" >&2
+  exit 1
+fi
+
 HOST="$(awk -F= '/^host=/{gsub(/[[:space:]]/, "", $2); print $2}' "$BASE_DCV_FILE")"
 PORT="$(awk -F= '/^port=/{gsub(/[[:space:]]/, "", $2); print $2}' "$BASE_DCV_FILE")"
 PORT="${PORT:-8443}"
 
 MAX_WAIT="${DCV_WAIT_TIMEOUT:-300}"
 
-_poll_port() {
-  while ! nc -z -w2 "$HOST" "$PORT" 2>/dev/null; do
+_poll_dcv() {
+  while ! curl -skf --connect-timeout 2 --max-time 3 "https://$HOST:$PORT/version" >/dev/null 2>&1; do
     sleep 3
   done
 }
 
+_poll_desktop() {
+  while ! ssh -o ConnectTimeout=3 -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
+      "$PROJECT_NAME" "pgrep -x gnome-shell" >/dev/null 2>&1; do
+    sleep 3
+  done
+}
+
+_spinner_until() {
+  local pid=$1 label=$2
+  while kill -0 "$pid" 2>/dev/null; do
+    printf "\r  ${FRAMES[$((i % NFRAMES))]} %s" "$label"
+    sleep 0.08
+    i=$((i + 1))
+    if [[ $((SECONDS - start)) -ge $MAX_WAIT ]]; then
+      kill "$pid" 2>/dev/null
+      wait "$pid" 2>/dev/null
+      printf "\r  \033[31m✗\033[0m Timed out after ${MAX_WAIT}s.\n" >&2
+      exit 1
+    fi
+  done
+  wait "$pid"
+}
+
 FRAMES=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
 NFRAMES=${#FRAMES[@]}
-
-_poll_port &
-POLL_PID=$!
-trap 'kill "$POLL_PID" 2>/dev/null' EXIT
-
 i=0
 start=$SECONDS
-while kill -0 "$POLL_PID" 2>/dev/null; do
-  printf "\r  ${FRAMES[$((i % NFRAMES))]} Waiting for instance boot up..."
-  sleep 0.08
-  i=$((i + 1))
-  if [[ $((SECONDS - start)) -ge $MAX_WAIT ]]; then
-    kill "$POLL_PID" 2>/dev/null
-    wait "$POLL_PID" 2>/dev/null
-    printf "\r  \033[31m✗\033[0m Timed out after ${MAX_WAIT}s waiting for instance.\n" >&2
-    exit 1
-  fi
-done
-wait "$POLL_PID"
+
+_poll_dcv &
+POLL_PID=$!
+trap 'kill "$POLL_PID" 2>/dev/null' EXIT
+_spinner_until "$POLL_PID" "Waiting for instance..."
 trap - EXIT
-printf "\r  \033[32m✓\033[0m Instance ready.                          \n"
+
+_poll_desktop &
+POLL_PID=$!
+trap 'kill "$POLL_PID" 2>/dev/null' EXIT
+_spinner_until "$POLL_PID" "Waiting for desktop..."
+trap - EXIT
+
+printf "\r  \033[32m✓\033[0m Desktop ready.                           \n"
 
 TMP_DCV_FILE="$(mktemp /tmp/robotics-dev.XXXXXX.dcv)"
 chmod 600 "$TMP_DCV_FILE"
