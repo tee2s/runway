@@ -14,9 +14,9 @@ isaac_snapshot_id    = "snap-0dd030ad9fd06f6ac"
 # Used only when isaac_snapshot_id is empty.
 isaac_data_volume_size_gib = 80
 # the path in s3 under which the project data will be loaded from
-s3_project_prefix    = "project/"
+s3_project_prefix    = "ws/"
 # where in the instance the project data should be loaded too
-workspace_path       = "/workspace/project"
+workspace_path       = "/home/ubuntu/ws"
 # SSM SecureString created by scripts/create-ubuntu-password.sh.
 ubuntu_password_hash_parameter_name = "/ubuntu-default-password-hash"
 # Optional existing EC2 key pair name for SSH access.

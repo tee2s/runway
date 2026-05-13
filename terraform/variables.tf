@@ -89,13 +89,13 @@ variable "isaac_snapshot_id" {
 variable "s3_project_prefix" {
   description = "Default S3 prefix for project data."
   type        = string
-  default     = "project/"
+  default     = "ws/"
 }
 
 variable "workspace_path" {
   description = "Default local workspace path on simulation instances."
   type        = string
-  default     = "/workspace/project"
+  default     = "/home/ubuntu/ws"
 }
 
 variable "ubuntu_password_hash_parameter_name" {
