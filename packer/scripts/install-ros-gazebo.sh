@@ -6,6 +6,12 @@
 
 set -euxo pipefail
 
+# Skip when ROS and Gazebo are managed per-project via Pixi environments.
+if [[ "${INSTALL_SYSTEM_ROS:-true}" != "true" ]]; then
+  echo "[install-ros] Skipping system ROS/Gazebo install (INSTALL_SYSTEM_ROS=false)"
+  exit 0
+fi
+
 echo "[install-ros] Starting ROS and Gazebo installation..."
 export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
 export NEEDRESTART_MODE="${NEEDRESTART_MODE:-a}"

@@ -3,10 +3,12 @@
 Terraform + Packer setup for running GPU workstation setup for robotics simulation environments on AWS.
 
 Supports two runtime modes:
+
 - `gazebo` (ROS/Gazebo workflows)
 - `isaac` (Isaac Sim workflows)
 
 The repo is split into:
+
 - `packer/`: builds staged AMIs (GPU foundation, DCV/desktop, containers, simulation tooling, package overlay)
 - `terraform/`: provisions core infrastructure and controls runtime sessions
 - `userdata/`: instance bootstrap script
@@ -15,11 +17,13 @@ The repo is split into:
 ## Architecture
 
 High-level flow:
+
 1. Build a reusable AMI with Packer.
 2. Provision core infra with Terraform (VPC, public subnets in every region AZ, SGs, IAM, S3, launch templates, SSM params).
 3. Start/stop a single runtime instance through EC2 Fleet by flipping Terraform variables.
 
 Runtime control:
+
 - `runtime_enabled = true|false`
 - `simulation_mode = "gazebo"|"isaac"`
 - `gazebo_launch_template_instance_types` and `isaac_launch_template_instance_types` provide EC2 Fleet candidate GPU shapes.
@@ -42,6 +46,7 @@ cp terraform.tfvars.example terraform.tfvars
 ```
 
 Set at least:
+
 - `trusted_client_cidr` (your IP/32 or office CIDR)
 - `base_ami_id`
 - `isaac_snapshot_id` (optional for `isaac` mode; leave empty for a fresh volume)
@@ -133,11 +138,15 @@ packer build -only=robotics-containers.amazon-ebs.robotics_containers -var-file=
 # 4. Simulation tooling
 packer build -only=robotics-simulation.amazon-ebs.robotics_simulation -var-file=packer/robotics-base-grid.pkrvars.hcl packer/
 
-# 5. Final packages + login policy
+# 5. Final packages 
 packer build -only=robotics-packages.amazon-ebs.robotics_packages -var-file=packer/robotics-base-grid.pkrvars.hcl packer/
 ```
 
 Each downstream stage selects the latest successful parent AMI by generated name plus `RoboticsStage` and `RoboticsVariant` tags. The final package stage runs `packer/scripts/install-packages.sh`, which currently installs Pixi, and applies the SSH password-authentication policy. To add more final-stage package tooling, edit that script and rebuild only the package stage. The Ubuntu password hash is applied at runtime by Terraform bootstrap from the SSM parameter configured as `ubuntu_password_hash_parameter_name`.
+
+### `install_system_ros` variable
+
+Both pkrvars files expose `install_system_ros` (default `true`). Set it to `false` when ROS and Gazebo are managed per-project via Pixi environments — the system-wide install is then unnecessary and skipped entirely during the simulation stage. No other stages depend on a system ROS install.
 
 For package-only changes after the simulation AMI already exists, rerun only the final package command for the selected pipeline.
 

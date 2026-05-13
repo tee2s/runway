@@ -57,7 +57,8 @@ build {
   provisioner "shell" {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive",
-      "ROS_DISTRO=${var.ros_distro}"
+      "ROS_DISTRO=${var.ros_distro}",
+      "INSTALL_SYSTEM_ROS=${var.install_system_ros}"
     ]
     script = "packer/scripts/install-ros-gazebo.sh"
   }

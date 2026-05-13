@@ -28,3 +28,6 @@ nvidia_container_toolkit_version = ""
 
 ros_distro            = "kilted"
 isaac_sim_package_url = "https://downloads.isaacsim.nvidia.com/isaac-sim-standalone-5.1.0-linux-x86_64.zip"
+
+# Set to false when ROS/Gazebo are managed per-project via Pixi — system install is then unnecessary.
+install_system_ros = true

@@ -82,3 +82,10 @@ variable "isaac_sim_package_url" {
   type    = string
   default = "https://downloads.isaacsim.nvidia.com/isaac-sim-standalone-5.1.0-linux-x86_64.zip"
 }
+
+# Set to false when ROS and Gazebo are managed per-project via Pixi environments,
+# in which case a system-wide install is unnecessary and can cause environment leakage.
+variable "install_system_ros" {
+  type    = bool
+  default = true
+}
