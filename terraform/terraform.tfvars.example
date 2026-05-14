@@ -5,10 +5,10 @@ parameter_prefix     = "/robotics-dev"
 vpc_cidr             = "10.42.0.0/16"
 # Your public IP /32 (or office CIDR). Required — 0.0.0.0/0 is rejected. See terraform/README.md for Isaac streaming security.
 trusted_client_cidr  = "76.36.228.147/32" 
-gazebo_launch_template_instance_types = ["g6f.xlarge", "g6f.2xlarge", "g4dn.xlarge", "g4dn.2xlarge", "g6.4xlarge", "g6f.4xlarge"]
+gazebo_launch_template_instance_types = ["g6f.xlarge", "g6f.2xlarge", "g4dn.xlarge", "g4dn.2xlarge"]
 isaac_launch_template_instance_types  = ["g6e.2xlarge", "g6.2xlarge", "g5.2xlarge"]
 root_volume_size_gib = 120
-base_ami_id          = "ami-07a5aa2e86861df94"
+base_ami_id          = "ami-004e6735fb0a234e0"
 # Optional: set snap-... to restore Isaac data, or leave empty for a fresh volume.
 isaac_snapshot_id    = "snap-0dd030ad9fd06f6ac"
 # Used only when isaac_snapshot_id is empty.
@@ -25,4 +25,4 @@ runtime_key_pair_name = "tmac"
 # Local private key path used to update ssh profile ~/.ssh/config.d/<project_name>.
 runtime_private_key_path = "~/.ssh/tmac.pem"
 runtime_enabled      = false
-simulation_mode      = "isaac"
+simulation_mode      = "gazebo"
