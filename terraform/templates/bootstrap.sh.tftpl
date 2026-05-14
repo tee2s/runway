@@ -48,7 +48,7 @@ configure_ubuntu_password() {
   usermod --password "$password_hash" ubuntu
 }
 
-mkdir -p /workspace/project /mnt/assets /mnt/isaac
+mkdir -p /mnt/assets /mnt/isaac
 
 configure_ubuntu_password
 
@@ -57,18 +57,18 @@ PROJECT_PREFIX="$(get_param "$PROJECT_PREFIX_PARAM")"
 WORKSPACE_PATH="$(get_param "$WORKSPACE_PARAM")"
 
 configure_project_sync_aliases() {
-cat >> ~/.bashrc <<EOF
+cat >> /home/ubuntu/.bashrc <<EOF
 alias s3-pull='aws s3 sync "s3://$${BUCKET}/$${PROJECT_PREFIX}" "$${WORKSPACE_PATH}" --delete'
 alias s3-push='aws s3 sync "$${WORKSPACE_PATH}" "s3://$${BUCKET}/$${PROJECT_PREFIX}" --delete'
 EOF
-
-source ~/.bashrc
 }
 
 configure_project_sync_aliases
 
 mkdir -p "$WORKSPACE_PATH"
+chown ubuntu:ubuntu "$WORKSPACE_PATH"
 retry 12 10 aws s3 sync "s3://$${BUCKET}/$${PROJECT_PREFIX}" "$WORKSPACE_PATH" --delete
+chown -R ubuntu:ubuntu "$WORKSPACE_PATH"
 
 mount_isaac_volume() {
   local preferred_device="$${1:-/dev/sdf}"
