@@ -8,6 +8,7 @@ export NEEDRESTART_MODE="${NEEDRESTART_MODE:-a}"
 
 PIXI_HOME="/opt/pixi"
 PIXI_BIN_DIR="/usr/local/bin"
+UV_INSTALL_DIR="/usr/local/bin"
 NEOVIM_INSTALL_DIR="/opt/nvim"
 NEOVIM_BIN="/usr/local/bin/nvim"
 GHOSTTY_BIN="/usr/bin/ghostty"
@@ -113,6 +114,13 @@ curl -fsSL https://pixi.sh/install.sh \
 
 echo "[install-packages] Pixi version:"
 pixi --version
+
+echo "[install-packages] Installing uv to ${UV_INSTALL_DIR}..."
+curl -fsSL https://astral.sh/uv/install.sh \
+  | sudo env UV_INSTALL_DIR="${UV_INSTALL_DIR}" UV_NO_MODIFY_PATH=1 sh
+
+echo "[install-packages] uv version:"
+uv --version
 
 echo "[install-packages] Adding Ghostty Ubuntu PPA..."
 sudo add-apt-repository -y ppa:mkasberg/ghostty-ubuntu
