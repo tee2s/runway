@@ -63,10 +63,6 @@ build {
   }
 
   provisioner "shell" {
-    script = "packer/scripts/configure-login.sh"
-  }
-
-  provisioner "shell" {
     environment_vars = [
       "DEBIAN_FRONTEND=noninteractive"
     ]
