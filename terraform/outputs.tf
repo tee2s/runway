@@ -62,3 +62,8 @@ output "isaac_runtime_volume_id" {
   description = "Isaac runtime volume ID when isaac mode is enabled."
   value       = var.runtime_enabled && var.simulation_mode == "isaac" ? aws_ebs_volume.isaac_runtime[0].id : null
 }
+
+output "runtime_spot_price" {
+  description = "Current spot price (USD/hr) for the runtime instance type and AZ when enabled."
+  value       = var.runtime_enabled ? data.aws_ec2_spot_price.runtime[0].spot_price : null
+}

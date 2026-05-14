@@ -42,9 +42,41 @@ resource "aws_ec2_fleet" "runtime" {
 data "aws_instance" "runtime" {
   count = var.runtime_enabled ? 1 : 0
 
-  instance_id = local.runtime_instance_id
+  filter {
+    name   = "tag:Role"
+    values = ["runtime"]
+  }
+
+  filter {
+    name   = "tag:Mode"
+    values = [var.simulation_mode]
+  }
+
+  filter {
+    name   = "tag:Project"
+    values = [var.project_name]
+  }
+
+  filter {
+    name   = "instance-state-name"
+    values = ["running", "pending"]
+  }
 
   depends_on = [aws_ec2_fleet.runtime]
+}
+
+data "aws_ec2_spot_price" "runtime" {
+  count = var.runtime_enabled ? 1 : 0
+
+  instance_type     = local.runtime_instance_type
+  availability_zone = local.runtime_availability_zone
+
+  filter {
+    name   = "product-description"
+    values = ["Linux/UNIX"]
+  }
+
+  depends_on = [data.aws_instance.runtime]
 }
 
 resource "aws_ebs_volume" "isaac_runtime" {

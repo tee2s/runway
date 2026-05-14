@@ -75,10 +75,7 @@ locals {
       }
     ]
   ])
-  runtime_fleet_instance_ids = var.runtime_enabled ? flatten([
-    for instance_set in aws_ec2_fleet.runtime[0].fleet_instance_set : instance_set.instance_ids
-  ]) : []
-  runtime_instance_id       = try(one(local.runtime_fleet_instance_ids), null)
+  runtime_instance_id       = try(data.aws_instance.runtime[0].id, null)
   runtime_instance_type     = try(data.aws_instance.runtime[0].instance_type, null)
   runtime_public_ip         = try(data.aws_instance.runtime[0].public_ip, null)
   runtime_availability_zone = try(data.aws_instance.runtime[0].availability_zone, null)
