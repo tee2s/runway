@@ -34,9 +34,16 @@ _poll_dcv() {
 }
 
 _poll_desktop() {
-  while ! ssh -o ConnectTimeout=3 -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
-      "$PROJECT_NAME" "pgrep -x gnome-shell" >/dev/null 2>&1; do
-    sleep 3
+  while ! ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new \
+      "$PROJECT_NAME" '
+    systemctl is-active --quiet dcvserver &&
+    test -S /tmp/.X11-unix/X0 &&
+    pgrep -u ubuntu -x gnome-shell >/dev/null &&
+    pgrep -u ubuntu -x dcvagent >/dev/null &&
+    sudo test -f /var/log/dcv/agent.ubuntu.console.log &&
+    sudo grep -q "Session '"'"'console'"'"' constructed" /var/log/dcv/agent.ubuntu.console.log
+  ' 2>/dev/null; do
+    sleep 2
   done
 }
 
