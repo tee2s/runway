@@ -104,7 +104,9 @@ configure_dev_state() {
     "$mount_point/.local/share/uv/tools" \
     "$mount_point/.local/share/uv/python" \
     "$mount_point/.local/bin" \
-    "$mount_point/.config"
+    "$mount_point/.config" \
+    "$mount_point/.pixi/bin" \
+    "$mount_point/.pixi/envs"
   chown -R ubuntu:ubuntu "$mount_point"
 
   # Workspace convenience symlink
@@ -150,6 +152,8 @@ export UV_TOOL_DIR="$mount_point/.local/share/uv/tools"
 export UV_TOOL_BIN_DIR="$mount_point/.local/bin"
 export UV_PYTHON_INSTALL_DIR="$mount_point/.local/share/uv/python"
 export UV_PYTHON_BIN_DIR="$mount_point/.local/bin"
+export PIXI_HOME="$mount_point/.pixi"
+export PATH="$mount_point/.pixi/bin:\$PATH"
 export PIXI_CACHE_DIR="$mount_point/.cache/rattler"
 export RATTLER_CACHE_DIR="$mount_point/.cache/rattler"
 PROFILE
