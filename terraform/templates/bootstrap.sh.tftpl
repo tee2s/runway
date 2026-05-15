@@ -110,7 +110,7 @@ configure_dev_state() {
   fi
 
   # Move Docker data from root volume to dev-state on fresh volumes
-  systemctl stop docker
+  systemctl stop docker.socket docker
   if [ -d /var/lib/docker ] && [ ! -d "$mount_point/docker/image" ]; then
     echo "Migrating Docker data to dev-state volume..."
     rsync -a /var/lib/docker/ "$mount_point/docker/" 2>/dev/null || true
@@ -171,7 +171,7 @@ if [ -z "$VOLUME_ID" ]; then
 fi
 
 echo "Stopping Docker..."
-systemctl stop docker
+systemctl stop docker.socket docker
 
 echo "Syncing filesystem..."
 sync

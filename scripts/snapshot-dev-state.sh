@@ -29,7 +29,7 @@ if [ -z "$VOLUME_ID" ]; then
 fi
 
 echo "Stopping Docker..."
-systemctl stop docker
+systemctl stop docker.socket docker
 
 echo "Syncing filesystem..."
 sync
