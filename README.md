@@ -130,34 +130,46 @@ RATTLER_CACHE_DIR=/work/.cache/rattler
 # terraform.tfvars
 dev_state_volume_enabled  = true
 dev_state_volume_size_gib = 120   # ignored when restoring from snapshot
+persist_dev_state_volume  = true  # recommended — see below
 ```
 
 ```bash
-terraform apply -var runtime_enabled=true -var dev_state_volume_enabled=true
+terraform apply -var runtime_enabled=true
 ```
 
-### Persisting state across sessions
+### Persist mode vs ephemeral mode
 
-The volume is created fresh (or from the last snapshot) each session and destroyed when the runtime stops. There are two ways to save state before stopping:
+**Persist mode** (`persist_dev_state_volume = true`, recommended): the volume is kept alive between sessions. Stopping the runtime detaches the volume; starting again reattaches it. Spot termination is harmless — rerun `terraform apply` to get a new instance with the same volume. No snapshots needed for normal stop/start. The fleet is constrained to the volume's AZ (alphabetically first AZ in the region by default), which reduces spot AZ diversity but is the right tradeoff for a dev workstation.
 
-**Auto-save (recommended):** set `dev_state_auto_save = true` in `terraform.tfvars`. When `runtime_enabled` is set to false, Terraform's destroy-time provisioner automatically SSMs into the instance, runs `snapshot-dev-state`, and waits for it to complete before tearing down the fleet and detaching the volume. If the instance was already spot-terminated the snapshot is skipped and cleanup proceeds.
+```bash
+terraform apply -var runtime_enabled=false   # detaches volume, keeps it
+terraform apply -var runtime_enabled=true    # reattaches existing volume
+```
+
+**Ephemeral mode** (`persist_dev_state_volume = false`): the volume is created each session (from the latest snapshot) and destroyed on stop. The fleet picks the best AZ freely. Use `dev_state_auto_save` to snapshot automatically before destroy.
 
 ```hcl
-dev_state_auto_save = true
+persist_dev_state_volume = false
+dev_state_auto_save      = true   # snapshot before destroy
 ```
 
 ```bash
-terraform apply -var runtime_enabled=false   # snapshots first, then stops
+terraform apply -var runtime_enabled=false   # snapshots first, then destroys volume
+terraform apply -var runtime_enabled=true    # creates fresh volume from latest snapshot
 ```
 
-**Manual save:** run the helper directly on the instance before stopping:
+If the instance was spot-terminated before stopping, auto-save is skipped (`on_failure = continue`) and the volume is destroyed — data since the last snapshot is lost.
+
+### Manual snapshot
+
+In either mode you can snapshot at any time:
 
 ```bash
 sudo snapshot-dev-state
 # → snap-0abc123...
 ```
 
-Either way, `snapshot-dev-state` stops Docker, syncs the filesystem, creates a snapshot, waits for completion, writes the new snapshot ID to SSM, deletes the previous snapshot, then restarts Docker. The next `terraform apply` reads the snapshot ID from SSM automatically — no manual `tfvars` update needed.
+`snapshot-dev-state` stops Docker, syncs the filesystem, creates a snapshot, waits for completion, writes the new snapshot ID to SSM, deletes the previous snapshot, then restarts Docker. The SSM-managed snapshot ID is also useful as a backup in persist mode (catastrophic volume loss, region move, etc.).
 
 The current snapshot ID is always visible:
 
@@ -167,7 +179,7 @@ terraform output dev_state_snapshot_id
 
 The script is written to `/usr/local/bin/snapshot-dev-state` on the instance by bootstrap (sourcing `/etc/robotics/dev-state.conf` for the SSM paths baked in at boot). `scripts/snapshot-dev-state.sh` in the repo is an identical reference copy.
 
-> **IAM note:** auto-save runs `aws ssm send-command` from the machine executing Terraform. That identity needs `ssm:SendCommand` and `ssm:GetCommandInvocation` — these are on your personal AWS credentials, not the instance role.
+> **IAM note:** auto-save uses `aws ssm send-command` from the machine executing Terraform. That identity needs `ssm:SendCommand` and `ssm:GetCommandInvocation`.
 
 ## Workspace sync
 

@@ -158,7 +158,13 @@ variable "dev_state_mount_path" {
 }
 
 variable "dev_state_auto_save" {
-  description = "When true, automatically runs snapshot-dev-state on the instance via SSM before the runtime is stopped. Requires the Terraform runner to have ssm:SendCommand and ssm:GetCommandInvocation permissions."
+  description = "When true, automatically runs snapshot-dev-state on the instance via SSM before the runtime is stopped. Ignored when persist_dev_state_volume=true. Requires the Terraform runner to have ssm:SendCommand and ssm:GetCommandInvocation permissions."
+  type        = bool
+  default     = false
+}
+
+variable "persist_dev_state_volume" {
+  description = "When true, the dev-state EBS volume is kept alive between runtime sessions instead of being destroyed on stop. The fleet is constrained to the volume's AZ. dev_state_auto_save is ignored in this mode."
   type        = bool
   default     = false
 }

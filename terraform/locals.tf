@@ -68,13 +68,18 @@ locals {
   runtime_launch_template_name = var.simulation_mode == "isaac" ? aws_launch_template.isaac.name : aws_launch_template.gazebo.name
   runtime_launch_template_id   = var.simulation_mode == "isaac" ? aws_launch_template.isaac.id : aws_launch_template.gazebo.id
   runtime_security_group_id    = var.simulation_mode == "isaac" ? aws_security_group.isaac.id : aws_security_group.gazebo.id
-  runtime_subnet_ids           = [for subnet in aws_subnet.public : subnet.id]
+  # When the dev-state volume is persistent, constrain the fleet to the same AZ as the volume.
+  # Both this local and aws_ebs_volume.dev_state derive the AZ from aws_subnet.public["0"] independently,
+  # which breaks the cycle that would otherwise form through runtime_availability_zone -> fleet.
+  dev_state_persistent_az = var.persist_dev_state_volume && var.dev_state_volume_enabled ? aws_subnet.public["0"].availability_zone : null
+
   runtime_fleet_overrides = flatten([
     for instance_type in local.runtime_instance_types : [
-      for subnet_id in local.runtime_subnet_ids : {
+      for subnet in aws_subnet.public : {
         instance_type = instance_type
-        subnet_id     = subnet_id
+        subnet_id     = subnet.id
       }
+      if local.dev_state_persistent_az == null || subnet.availability_zone == local.dev_state_persistent_az
     ]
   ])
   runtime_instance_id       = try(data.aws_instance.runtime[0].id, null)

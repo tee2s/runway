@@ -113,9 +113,11 @@ locals {
 }
 
 resource "aws_ebs_volume" "dev_state" {
-  count = var.dev_state_volume_enabled && var.runtime_enabled ? 1 : 0
+  count = var.dev_state_volume_enabled && (var.persist_dev_state_volume || var.runtime_enabled) ? 1 : 0
 
-  availability_zone = local.runtime_availability_zone
+  # Persistent volumes use the first subnet's AZ (matching local.dev_state_persistent_az).
+  # Ephemeral volumes follow the fleet's chosen AZ via local.runtime_availability_zone.
+  availability_zone = var.persist_dev_state_volume ? aws_subnet.public["0"].availability_zone : local.runtime_availability_zone
   snapshot_id       = local.dev_state_current_snapshot_id != "" ? local.dev_state_current_snapshot_id : null
   size              = local.dev_state_current_snapshot_id == "" ? var.dev_state_volume_size_gib : null
   type              = var.dev_state_volume_type
@@ -137,7 +139,7 @@ resource "aws_volume_attachment" "dev_state" {
 }
 
 resource "terraform_data" "dev_state_auto_save" {
-  count = var.dev_state_auto_save && var.dev_state_volume_enabled && var.runtime_enabled ? 1 : 0
+  count = var.dev_state_auto_save && !var.persist_dev_state_volume && var.dev_state_volume_enabled && var.runtime_enabled ? 1 : 0
 
   input = {
     instance_id       = local.runtime_instance_id

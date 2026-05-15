@@ -34,5 +34,9 @@ dev_state_volume_enabled  = true
 dev_state_volume_size_gib = 120
 dev_state_volume_type     = "gp3"
 dev_state_mount_path      = "/work"
-# Automatically snapshot before stopping. Requires ssm:SendCommand + ssm:GetCommandInvocation on the Terraform runner.
-dev_state_auto_save       = true
+# Keep the volume alive between sessions (survives spot termination, no snapshots needed).
+# Fleet is constrained to the volume's AZ when enabled.
+persist_dev_state_volume  = true
+# Automatically snapshot before stopping (non-persist mode only).
+# Requires ssm:SendCommand + ssm:GetCommandInvocation on the Terraform runner.
+dev_state_auto_save       = false
