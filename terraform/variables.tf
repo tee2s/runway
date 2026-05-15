@@ -151,12 +151,6 @@ variable "dev_state_volume_type" {
   default     = "gp3"
 }
 
-variable "dev_state_snapshot_id" {
-  description = "Optional snapshot ID to restore the dev-state volume from. Empty creates a fresh volume. Run snapshot-dev-state on the instance before stopping to save state."
-  type        = string
-  default     = ""
-}
-
 variable "dev_state_mount_path" {
   description = "Mount path for the dev-state volume on simulation instances."
   type        = string

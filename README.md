@@ -125,22 +125,16 @@ terraform apply -var runtime_enabled=true -var dev_state_volume_enabled=true
 
 ### Persisting state across sessions
 
-The volume is created fresh (or from snapshot) each session and destroyed when the runtime stops, so you must snapshot before stopping if you want to keep state.
-
-Run on the instance before stopping:
+The volume is created fresh (or from the last snapshot) each session and destroyed when the runtime stops. Run the snapshot helper before stopping to save state:
 
 ```bash
 sudo snapshot-dev-state
 # → snap-0abc123...
 ```
 
-`snapshot-dev-state` stops Docker, syncs the filesystem, creates the snapshot, waits for it to complete, restarts Docker, and prints the snapshot ID. Set that ID for the next session:
+The script stops Docker, syncs the filesystem, creates a snapshot, waits for completion, writes the new snapshot ID to SSM, deletes the previous snapshot, then restarts Docker. The next `terraform apply` reads the snapshot ID from SSM automatically — no manual `tfvars` update needed.
 
-```hcl
-dev_state_snapshot_id = "snap-0abc123..."
-```
-
-The script is written to `/usr/local/bin/snapshot-dev-state` on the instance by bootstrap — it is not copied from the repo at runtime. `scripts/snapshot-dev-state.sh` in the repo is an identical reference copy.
+The script is written to `/usr/local/bin/snapshot-dev-state` on the instance by bootstrap (sourcing `/etc/robotics/dev-state.conf` for the SSM paths baked in at boot). `scripts/snapshot-dev-state.sh` in the repo is an identical reference copy.
 
 ## Workspace sync
 

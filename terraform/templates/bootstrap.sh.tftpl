@@ -9,6 +9,7 @@ UBUNTU_PASSWORD_HASH_PARAM="${ubuntu_password_hash_param}"
 DEV_STATE_ENABLED="${dev_state_enabled}"
 DEV_STATE_MOUNT_PATH="${dev_state_mount_path}"
 DEV_STATE_VOLUME_ID_PARAM="${dev_state_volume_id_param}"
+DEV_STATE_SNAPSHOT_ID_PARAM="${dev_state_snapshot_id_param}"
 
 LOG_FILE="/var/log/robotics-bootstrap.log"
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -142,12 +143,22 @@ export PIXI_CACHE_DIR="$mount_point/.cache/rattler"
 export RATTLER_CACHE_DIR="$mount_point/.cache/rattler"
 PROFILE
 
-  # Snapshot helper
+  # Runtime config for snapshot helper (baked in at boot)
+  mkdir -p /etc/robotics
+  cat > /etc/robotics/dev-state.conf <<CONF
+DEV_STATE_MOUNT_PATH=$DEV_STATE_MOUNT_PATH
+DEV_STATE_SNAPSHOT_ID_PARAM=$DEV_STATE_SNAPSHOT_ID_PARAM
+CONF
+
+  # Snapshot helper — sources /etc/robotics/dev-state.conf for SSM paths
   cat > /usr/local/bin/snapshot-dev-state <<'SNAPSCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
 
-MOUNT_PATH="$${1:-/work}"
+. /etc/robotics/dev-state.conf
+
+MOUNT_PATH="$${1:-$DEV_STATE_MOUNT_PATH}"
+SNAPSHOT_PARAM="$DEV_STATE_SNAPSHOT_ID_PARAM"
 
 if ! mountpoint -q "$MOUNT_PATH"; then
   echo "Error: $MOUNT_PATH is not mounted" >&2
@@ -170,6 +181,8 @@ if [ -z "$VOLUME_ID" ]; then
   exit 1
 fi
 
+OLD_SNAPSHOT_ID="$(aws ssm get-parameter --name "$SNAPSHOT_PARAM" --query 'Parameter.Value' --output text 2>/dev/null || true)"
+
 echo "Stopping Docker..."
 systemctl stop docker.socket docker
 
@@ -185,6 +198,15 @@ SNAPSHOT_ID="$(aws ec2 create-snapshot \
 
 echo "Waiting for $SNAPSHOT_ID to complete..."
 aws ec2 wait snapshot-completed --snapshot-ids "$SNAPSHOT_ID"
+
+echo "Updating $SNAPSHOT_PARAM -> $SNAPSHOT_ID..."
+aws ssm put-parameter --name "$SNAPSHOT_PARAM" --value "$SNAPSHOT_ID" --type String --overwrite
+
+if [ -n "$OLD_SNAPSHOT_ID" ] && [ "$OLD_SNAPSHOT_ID" != "$SNAPSHOT_ID" ]; then
+  echo "Deleting old snapshot $OLD_SNAPSHOT_ID..."
+  aws ec2 delete-snapshot --snapshot-id "$OLD_SNAPSHOT_ID" \
+    || echo "Warning: could not delete $OLD_SNAPSHOT_ID"
+fi
 
 echo "Starting Docker..."
 systemctl start docker

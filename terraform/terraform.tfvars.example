@@ -28,11 +28,9 @@ runtime_enabled      = false
 simulation_mode      = "gazebo"
 
 # Dev-state volume: persists Docker images, caches, and workspace across sessions via snapshots.
-# Workflow: run `snapshot-dev-state` on the instance before stopping, then set dev_state_snapshot_id
-# to the printed snapshot ID for the next session.
-dev_state_volume_enabled  = false
+# Snapshot ID is managed automatically in SSM — no manual tfvars update needed.
+# Run `sudo snapshot-dev-state` on the instance before stopping to save state.
+dev_state_volume_enabled  = true
 dev_state_volume_size_gib = 200
 dev_state_volume_type     = "gp3"
-# Optional: set snap-... to restore a previous dev-state, or leave empty for a fresh volume.
-dev_state_snapshot_id     = ""
 dev_state_mount_path      = "/work"

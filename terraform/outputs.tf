@@ -83,7 +83,7 @@ output "dev_state_mount_path" {
   value       = var.dev_state_volume_enabled ? var.dev_state_mount_path : null
 }
 
-output "dev_state_snapshot_source" {
-  description = "Snapshot ID used to create the dev-state volume, if any."
-  value       = var.dev_state_volume_enabled && trimspace(var.dev_state_snapshot_id) != "" ? var.dev_state_snapshot_id : null
+output "dev_state_snapshot_id" {
+  description = "Snapshot ID in use for the current dev-state volume session (SSM-managed)."
+  value       = var.dev_state_volume_enabled && var.runtime_enabled ? local.dev_state_current_snapshot_id : null
 }

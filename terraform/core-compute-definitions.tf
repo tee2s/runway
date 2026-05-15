@@ -103,6 +103,16 @@ resource "aws_iam_role_policy" "sim_instance_inline" {
         Effect   = "Allow"
         Action   = ["ec2:DescribeVolumes", "ec2:DescribeSnapshots"]
         Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "ec2:DeleteSnapshot"
+        Resource = "arn:aws:ec2:${var.region}::snapshot/*"
+        Condition = {
+          StringEquals = {
+            "aws:ResourceTag/Name" = "dev-state-snapshot"
+          }
+        }
       }
     ]
   })
@@ -124,9 +134,10 @@ resource "aws_launch_template" "gazebo" {
     workspace_param            = local.base_param_path.workspace_path
     bucket_param               = local.base_param_path.bucket_name
     ubuntu_password_hash_param = var.ubuntu_password_hash_parameter_name
-    dev_state_enabled          = var.dev_state_volume_enabled
-    dev_state_mount_path       = var.dev_state_mount_path
-    dev_state_volume_id_param  = local.base_param_path.dev_state_volume_id
+    dev_state_enabled             = var.dev_state_volume_enabled
+    dev_state_mount_path          = var.dev_state_mount_path
+    dev_state_volume_id_param     = local.base_param_path.dev_state_volume_id
+    dev_state_snapshot_id_param   = local.base_param_path.dev_state_snapshot_id
   }))
 
   iam_instance_profile {
@@ -180,9 +191,10 @@ resource "aws_launch_template" "isaac" {
     workspace_param            = local.base_param_path.workspace_path
     bucket_param               = local.base_param_path.bucket_name
     ubuntu_password_hash_param = var.ubuntu_password_hash_parameter_name
-    dev_state_enabled          = var.dev_state_volume_enabled
-    dev_state_mount_path       = var.dev_state_mount_path
-    dev_state_volume_id_param  = local.base_param_path.dev_state_volume_id
+    dev_state_enabled             = var.dev_state_volume_enabled
+    dev_state_mount_path          = var.dev_state_mount_path
+    dev_state_volume_id_param     = local.base_param_path.dev_state_volume_id
+    dev_state_snapshot_id_param   = local.base_param_path.dev_state_snapshot_id
   }))
 
   iam_instance_profile {
@@ -249,6 +261,21 @@ resource "aws_ssm_parameter" "infra" {
   type      = "String"
   value     = each.value
   overwrite = true
+
+  tags = local.common_tags
+}
+
+resource "aws_ssm_parameter" "dev_state_snapshot_id" {
+  count = var.dev_state_volume_enabled ? 1 : 0
+
+  name      = local.base_param_path.dev_state_snapshot_id
+  type      = "String"
+  value     = ""
+  overwrite = true
+
+  lifecycle {
+    ignore_changes = [value]
+  }
 
   tags = local.common_tags
 }

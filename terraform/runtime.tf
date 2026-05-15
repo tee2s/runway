@@ -101,12 +101,23 @@ resource "aws_volume_attachment" "isaac_runtime" {
   instance_id = local.runtime_instance_id
 }
 
+data "aws_ssm_parameter" "dev_state_snapshot_id" {
+  count = var.dev_state_volume_enabled && var.runtime_enabled ? 1 : 0
+  name  = local.base_param_path.dev_state_snapshot_id
+
+  depends_on = [aws_ssm_parameter.dev_state_snapshot_id]
+}
+
+locals {
+  dev_state_current_snapshot_id = try(trimspace(data.aws_ssm_parameter.dev_state_snapshot_id[0].value), "")
+}
+
 resource "aws_ebs_volume" "dev_state" {
   count = var.dev_state_volume_enabled && var.runtime_enabled ? 1 : 0
 
   availability_zone = local.runtime_availability_zone
-  snapshot_id       = trimspace(var.dev_state_snapshot_id) != "" ? var.dev_state_snapshot_id : null
-  size              = trimspace(var.dev_state_snapshot_id) == "" ? var.dev_state_volume_size_gib : null
+  snapshot_id       = local.dev_state_current_snapshot_id != "" ? local.dev_state_current_snapshot_id : null
+  size              = local.dev_state_current_snapshot_id == "" ? var.dev_state_volume_size_gib : null
   type              = var.dev_state_volume_type
   encrypted         = true
 

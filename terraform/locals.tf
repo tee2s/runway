@@ -18,6 +18,7 @@ locals {
     isaac_webrtc_tcp_ports = "${local.prefix}/config/isaac-webrtc-tcp-ports"
     isaac_webrtc_udp_ports = "${local.prefix}/config/isaac-webrtc-udp-ports"
     dev_state_volume_id    = "${local.prefix}/dev-state-volume-id"
+    dev_state_snapshot_id  = "${local.prefix}/dev-state-snapshot-id"
   }
 
   # Isaac Sim livestream: fixed SG + SSM documentation (TCP signaling 49100, TCP media 8210, UDP signaling 4799).
