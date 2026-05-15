@@ -138,16 +138,36 @@ terraform apply -var runtime_enabled=true -var dev_state_volume_enabled=true
 
 ### Persisting state across sessions
 
-The volume is created fresh (or from the last snapshot) each session and destroyed when the runtime stops. Run the snapshot helper before stopping to save state:
+The volume is created fresh (or from the last snapshot) each session and destroyed when the runtime stops. There are two ways to save state before stopping:
+
+**Auto-save (recommended):** set `dev_state_auto_save = true` in `terraform.tfvars`. When `runtime_enabled` is set to false, Terraform's destroy-time provisioner automatically SSMs into the instance, runs `snapshot-dev-state`, and waits for it to complete before tearing down the fleet and detaching the volume. If the instance was already spot-terminated the snapshot is skipped and cleanup proceeds.
+
+```hcl
+dev_state_auto_save = true
+```
+
+```bash
+terraform apply -var runtime_enabled=false   # snapshots first, then stops
+```
+
+**Manual save:** run the helper directly on the instance before stopping:
 
 ```bash
 sudo snapshot-dev-state
 # → snap-0abc123...
 ```
 
-The script stops Docker, syncs the filesystem, creates a snapshot, waits for completion, writes the new snapshot ID to SSM, deletes the previous snapshot, then restarts Docker. The next `terraform apply` reads the snapshot ID from SSM automatically — no manual `tfvars` update needed.
+Either way, `snapshot-dev-state` stops Docker, syncs the filesystem, creates a snapshot, waits for completion, writes the new snapshot ID to SSM, deletes the previous snapshot, then restarts Docker. The next `terraform apply` reads the snapshot ID from SSM automatically — no manual `tfvars` update needed.
+
+The current snapshot ID is always visible:
+
+```bash
+terraform output dev_state_snapshot_id
+```
 
 The script is written to `/usr/local/bin/snapshot-dev-state` on the instance by bootstrap (sourcing `/etc/robotics/dev-state.conf` for the SSM paths baked in at boot). `scripts/snapshot-dev-state.sh` in the repo is an identical reference copy.
+
+> **IAM note:** auto-save runs `aws ssm send-command` from the machine executing Terraform. That identity needs `ssm:SendCommand` and `ssm:GetCommandInvocation` — these are on your personal AWS credentials, not the instance role.
 
 ## Workspace sync
 
