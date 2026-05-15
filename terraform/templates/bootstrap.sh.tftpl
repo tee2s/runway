@@ -144,6 +144,7 @@ export XDG_DATA_HOME="$mount_point/.local/share"
 export XDG_CONFIG_HOME="$mount_point/.config"
 export XDG_BIN_HOME="$mount_point/.local/bin"
 export PATH="$mount_point/.local/bin:\$PATH"
+export UV_LINK_MODE=hardlink
 export UV_CACHE_DIR="$mount_point/.cache/uv"
 export UV_TOOL_DIR="$mount_point/.local/share/uv/tools"
 export UV_TOOL_BIN_DIR="$mount_point/.local/bin"
