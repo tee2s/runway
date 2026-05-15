@@ -84,6 +84,6 @@ output "dev_state_mount_path" {
 }
 
 output "dev_state_snapshot_id" {
-  description = "Snapshot ID in use for the current dev-state volume session (SSM-managed)."
-  value       = var.dev_state_volume_enabled && var.runtime_enabled ? local.dev_state_current_snapshot_id : null
+  description = "Current dev-state snapshot ID in SSM (next session restores from this). Updated by snapshot-dev-state and auto-save."
+  value       = var.dev_state_volume_enabled ? local.dev_state_current_snapshot_id : null
 }

@@ -31,6 +31,8 @@ simulation_mode      = "gazebo"
 # Snapshot ID is managed automatically in SSM — no manual tfvars update needed.
 # Run `sudo snapshot-dev-state` on the instance before stopping to save state.
 dev_state_volume_enabled  = true
-dev_state_volume_size_gib = 200
+dev_state_volume_size_gib = 120
 dev_state_volume_type     = "gp3"
 dev_state_mount_path      = "/work"
+# Automatically snapshot before stopping. Requires ssm:SendCommand + ssm:GetCommandInvocation on the Terraform runner.
+dev_state_auto_save       = true

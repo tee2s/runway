@@ -156,3 +156,9 @@ variable "dev_state_mount_path" {
   type        = string
   default     = "/work"
 }
+
+variable "dev_state_auto_save" {
+  description = "When true, automatically runs snapshot-dev-state on the instance via SSM before the runtime is stopped. Requires the Terraform runner to have ssm:SendCommand and ssm:GetCommandInvocation permissions."
+  type        = bool
+  default     = false
+}

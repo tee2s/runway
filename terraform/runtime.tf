@@ -102,7 +102,7 @@ resource "aws_volume_attachment" "isaac_runtime" {
 }
 
 data "aws_ssm_parameter" "dev_state_snapshot_id" {
-  count = var.dev_state_volume_enabled && var.runtime_enabled ? 1 : 0
+  count = var.dev_state_volume_enabled ? 1 : 0
   name  = local.base_param_path.dev_state_snapshot_id
 
   depends_on = [aws_ssm_parameter.dev_state_snapshot_id]
@@ -134,6 +134,76 @@ resource "aws_volume_attachment" "dev_state" {
   volume_id    = aws_ebs_volume.dev_state[0].id
   instance_id  = local.runtime_instance_id
   force_detach = true
+}
+
+resource "terraform_data" "dev_state_auto_save" {
+  count = var.dev_state_auto_save && var.dev_state_volume_enabled && var.runtime_enabled ? 1 : 0
+
+  input = {
+    instance_id       = local.runtime_instance_id
+    snapshot_id_param = local.base_param_path.dev_state_snapshot_id
+    region            = var.region
+  }
+
+  provisioner "local-exec" {
+    when       = destroy
+    on_failure = continue
+    command    = <<-SCRIPT
+      set -e
+      INSTANCE_ID="${self.input.instance_id}"
+      REGION="${self.input.region}"
+      SNAPSHOT_PARAM="${self.input.snapshot_id_param}"
+
+      echo "[auto-save] Sending snapshot-dev-state to $INSTANCE_ID..."
+      COMMAND_ID=$(aws ssm send-command \
+        --region "$REGION" \
+        --instance-id "$INSTANCE_ID" \
+        --document-name "AWS-RunShellScript" \
+        --parameters 'commands=["sudo /usr/local/bin/snapshot-dev-state"],executionTimeout=["3600"]' \
+        --output text \
+        --query "Command.CommandId")
+
+      echo "[auto-save] Command $COMMAND_ID dispatched, polling..."
+      for i in $(seq 1 60); do
+        STATUS=$(aws ssm get-command-invocation \
+          --region "$REGION" \
+          --command-id "$COMMAND_ID" \
+          --instance-id "$INSTANCE_ID" \
+          --query "Status" \
+          --output text 2>/dev/null || echo "Pending")
+        case "$STATUS" in
+          Success)
+            SNAPSHOT_ID=$(aws ssm get-parameter \
+              --region "$REGION" \
+              --name "$SNAPSHOT_PARAM" \
+              --query "Parameter.Value" \
+              --output text)
+            echo "[auto-save] Complete: $SNAPSHOT_ID"
+            exit 0
+            ;;
+          Failed|Cancelled|TimedOut|Cancelling)
+            echo "[auto-save] Command failed with status: $STATUS"
+            aws ssm get-command-invocation \
+              --region "$REGION" \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$INSTANCE_ID" \
+              --query "StandardErrorContent" \
+              --output text || true
+            exit 1
+            ;;
+        esac
+        echo "[auto-save] Status: $STATUS (poll $i/60)"
+        sleep 30
+      done
+      echo "[auto-save] Timed out after 30 minutes"
+      exit 1
+    SCRIPT
+  }
+
+  depends_on = [
+    aws_ec2_fleet.runtime,
+    aws_volume_attachment.dev_state,
+  ]
 }
 
 resource "aws_ssm_parameter" "dev_state_volume_id" {
