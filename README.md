@@ -86,6 +86,29 @@ terraform output
 
 When `runtime_enabled=true`, Terraform launches the runtime through EC2 Fleet using Spot `price-capacity-optimized` placement across every public subnet and configured candidate instance type for the selected mode. Terraform also writes a DCV connection file in `~/.config/dcv/<project_name>.dcv` (for example `~/.config/dcv/robotics-dev.dcv`) that you can open with `dcvviewer`.
 
+## Workspace sync
+
+The instance boots with two aliases for syncing your workspace to/from S3:
+
+```bash
+s3-pull   # S3 → local (runs automatically at boot)
+s3-push   # local → S3
+```
+
+Both aliases respect a `.s3ignore` file in the workspace root. Create it to exclude large or ephemeral directories:
+
+```
+# .s3ignore
+.git/*
+.pixi/*
+.venv/*
+__pycache__/*
+*.pyc
+build/*
+```
+
+Lines starting with `#` and blank lines are ignored. If `.s3ignore` is absent the sync runs without any exclusions.
+
 ## Security notes
 
 - `trusted_client_cidr` is required; `0.0.0.0/0` is intentionally rejected.
