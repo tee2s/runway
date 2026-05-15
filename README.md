@@ -94,29 +94,42 @@ The dev-state volume is an optional EBS volume (works in both Gazebo and Isaac m
 What lives on it:
 
 - `/work/ws` — project workspace files (symlinked to `/home/ubuntu/ws`)
-- `/work/docker` — Docker data-root (images, layers, build cache)
-- `/work/.cache/uv`, `/work/.cache/rattler` — uv and Pixi/rattler caches
-- `/work/.local/share` — XDG data home
+- `/work/docker` — Docker data-root (images, layers, build cache, volumes)
+- `/work/.cache/uv` — uv download cache
+- `/work/.cache/rattler` — Pixi/rattler package cache
+- `/work/.local/share/uv/tools` — `uv tool install` environments
+- `/work/.local/share/uv/python` — `uv python install` runtimes
+- `/work/.local/bin` — executables from uv-installed tools and Python
+- `/work/.config` — XDG config home for any XDG-aware tools
+- `/work/.local/share` — XDG data home (catch-all)
 
 Boot sets the following environment variables via `/etc/profile.d/dev-state.sh`:
 
 ```
 XDG_CACHE_HOME=/work/.cache
 XDG_DATA_HOME=/work/.local/share
+XDG_CONFIG_HOME=/work/.config
+XDG_BIN_HOME=/work/.local/bin
+PATH=/work/.local/bin:$PATH
+
 UV_CACHE_DIR=/work/.cache/uv
+UV_TOOL_DIR=/work/.local/share/uv/tools
+UV_TOOL_BIN_DIR=/work/.local/bin
+UV_PYTHON_INSTALL_DIR=/work/.local/share/uv/python
+UV_PYTHON_BIN_DIR=/work/.local/bin
+
 PIXI_CACHE_DIR=/work/.cache/rattler
 RATTLER_CACHE_DIR=/work/.cache/rattler
 ```
 
-Docker is reconfigured at boot to use `/work/docker` as its `data-root`. On first boot with a fresh volume the existing Docker data from the AMI is migrated there automatically.
+`uv` itself is baked into the AMI and stays on the root volume. Docker is reconfigured at boot to use `/work/docker` as its `data-root`; on first boot with a fresh volume, existing Docker data from the AMI is migrated there automatically.
 
 ### Enabling
 
 ```hcl
 # terraform.tfvars
 dev_state_volume_enabled  = true
-dev_state_volume_size_gib = 200   # ignored when restoring from snapshot
-dev_state_snapshot_id     = ""    # empty = fresh volume
+dev_state_volume_size_gib = 120   # ignored when restoring from snapshot
 ```
 
 ```bash
