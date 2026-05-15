@@ -11,8 +11,8 @@ The repo is split into:
 
 - `packer/`: builds staged AMIs (GPU foundation, DCV/desktop, containers, simulation tooling, package overlay)
 - `terraform/`: provisions core infrastructure and controls runtime sessions
-- `userdata/`: instance bootstrap script
-- `docs/`: architecture notes and diagrams
+- `terraform/templates/bootstrap.sh.tftpl`: instance bootstrap script rendered into launch template user data
+- `scripts/`: helper scripts (run on the instance or locally)
 
 ## Architecture
 
@@ -28,9 +28,9 @@ Runtime control:
 - `simulation_mode = "gazebo"|"isaac"`
 - `gazebo_launch_template_instance_types` and `isaac_launch_template_instance_types` provide EC2 Fleet candidate GPU shapes.
 
-In `isaac` mode, an EBS volume can be created from snapshot and attached/mounted at boot.
+In `isaac` mode, an EBS data volume can be created from snapshot and attached/mounted at boot.
 
-More detail: `docs/architecture.md` and `docs/diagrams/network.mmd`.
+A separate **dev-state volume** (optional, works in both modes) keeps mutable data off the AMI root: Docker images, tool caches, and workspace files. It persists across sessions via snapshots.
 
 ## Prerequisites
 
@@ -50,6 +50,7 @@ Set at least:
 - `trusted_client_cidr` (your IP/32 or office CIDR)
 - `base_ami_id`
 - `isaac_snapshot_id` (optional for `isaac` mode; leave empty for a fresh volume)
+- `dev_state_snapshot_id` (optional; leave empty on first run)
 
 Then:
 
@@ -86,6 +87,61 @@ terraform output
 
 When `runtime_enabled=true`, Terraform launches the runtime through EC2 Fleet using Spot `price-capacity-optimized` placement across every public subnet and configured candidate instance type for the selected mode. Terraform also writes a DCV connection file in `~/.config/dcv/<project_name>.dcv` (for example `~/.config/dcv/robotics-dev.dcv`) that you can open with `dcvviewer`.
 
+## Dev-state volume
+
+The dev-state volume is an optional EBS volume (works in both Gazebo and Isaac modes) that keeps mutable state off the AMI root so the root volume stays a clean, reusable image.
+
+What lives on it:
+
+- `/work/ws` — project workspace files (symlinked to `/home/ubuntu/ws`)
+- `/work/docker` — Docker data-root (images, layers, build cache)
+- `/work/.cache/uv`, `/work/.cache/rattler` — uv and Pixi/rattler caches
+- `/work/.local/share` — XDG data home
+
+Boot sets the following environment variables via `/etc/profile.d/dev-state.sh`:
+
+```
+XDG_CACHE_HOME=/work/.cache
+XDG_DATA_HOME=/work/.local/share
+UV_CACHE_DIR=/work/.cache/uv
+PIXI_CACHE_DIR=/work/.cache/rattler
+RATTLER_CACHE_DIR=/work/.cache/rattler
+```
+
+Docker is reconfigured at boot to use `/work/docker` as its `data-root`. On first boot with a fresh volume the existing Docker data from the AMI is migrated there automatically.
+
+### Enabling
+
+```hcl
+# terraform.tfvars
+dev_state_volume_enabled  = true
+dev_state_volume_size_gib = 200   # ignored when restoring from snapshot
+dev_state_snapshot_id     = ""    # empty = fresh volume
+```
+
+```bash
+terraform apply -var runtime_enabled=true -var dev_state_volume_enabled=true
+```
+
+### Persisting state across sessions
+
+The volume is created fresh (or from snapshot) each session and destroyed when the runtime stops, so you must snapshot before stopping if you want to keep state.
+
+Run on the instance before stopping:
+
+```bash
+sudo snapshot-dev-state
+# → snap-0abc123...
+```
+
+`snapshot-dev-state` stops Docker, syncs the filesystem, creates the snapshot, waits for it to complete, restarts Docker, and prints the snapshot ID. Set that ID for the next session:
+
+```hcl
+dev_state_snapshot_id = "snap-0abc123..."
+```
+
+The script is written to `/usr/local/bin/snapshot-dev-state` on the instance by bootstrap — it is not copied from the repo at runtime. `scripts/snapshot-dev-state.sh` in the repo is an identical reference copy.
+
 ## Workspace sync
 
 The instance boots with two aliases for syncing your workspace to/from S3:
@@ -99,7 +155,6 @@ Both aliases respect a `.s3ignore` file in the workspace root. Create it to excl
 
 ```
 # .s3ignore
-.git/*
 .pixi/*
 .venv/*
 __pycache__/*

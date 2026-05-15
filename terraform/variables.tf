@@ -132,3 +132,33 @@ variable "simulation_mode" {
     error_message = "simulation_mode must be gazebo or isaac."
   }
 }
+
+variable "dev_state_volume_enabled" {
+  description = "Whether to create and attach a dev-state EBS volume for mutable data (Docker images, caches, project workspace)."
+  type        = bool
+  default     = false
+}
+
+variable "dev_state_volume_size_gib" {
+  description = "Size in GiB for the dev-state volume when dev_state_snapshot_id is empty."
+  type        = number
+  default     = 200
+}
+
+variable "dev_state_volume_type" {
+  description = "EBS volume type for the dev-state volume."
+  type        = string
+  default     = "gp3"
+}
+
+variable "dev_state_snapshot_id" {
+  description = "Optional snapshot ID to restore the dev-state volume from. Empty creates a fresh volume. Run snapshot-dev-state on the instance before stopping to save state."
+  type        = string
+  default     = ""
+}
+
+variable "dev_state_mount_path" {
+  description = "Mount path for the dev-state volume on simulation instances."
+  type        = string
+  default     = "/work"
+}

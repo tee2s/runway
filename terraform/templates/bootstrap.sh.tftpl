@@ -6,6 +6,9 @@ PROJECT_PREFIX_PARAM="${project_prefix_param}"
 WORKSPACE_PARAM="${workspace_param}"
 BUCKET_PARAM="${bucket_param}"
 UBUNTU_PASSWORD_HASH_PARAM="${ubuntu_password_hash_param}"
+DEV_STATE_ENABLED="${dev_state_enabled}"
+DEV_STATE_MOUNT_PATH="${dev_state_mount_path}"
+DEV_STATE_VOLUME_ID_PARAM="${dev_state_volume_id_param}"
 
 LOG_FILE="/var/log/robotics-bootstrap.log"
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -48,6 +51,149 @@ configure_ubuntu_password() {
   usermod --password "$password_hash" ubuntu
 }
 
+mount_dev_state_volume() {
+  local mount_point="$DEV_STATE_MOUNT_PATH"
+  local device=""
+  local volume_id=""
+  local uuid=""
+
+  volume_id="$(get_param "$DEV_STATE_VOLUME_ID_PARAM" 2>/dev/null || true)"
+  if [ -n "$volume_id" ]; then
+    local by_id="/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$(echo "$volume_id" | tr -d '-')"
+    if [ -L "$by_id" ]; then
+      device="$(readlink -f "$by_id")"
+    fi
+  fi
+
+  if [ ! -b "$device" ] && [ -b "/dev/sdg" ]; then
+    device="/dev/sdg"
+  fi
+
+  if [ ! -b "$device" ]; then
+    echo "Dev state volume device not found. volume_id=$volume_id"
+    return 1
+  fi
+
+  echo "Using dev state volume device: $device"
+  mkdir -p "$mount_point"
+  if ! blkid "$device" >/dev/null 2>&1; then
+    mkfs -t ext4 "$device"
+  fi
+
+  uuid="$(blkid -s UUID -o value "$device" || true)"
+  if [ -z "$uuid" ]; then
+    echo "Unable to determine filesystem UUID for device: $device"
+    return 1
+  fi
+
+  awk -v mp="$mount_point" '$2 != mp { print $0 }' /etc/fstab > /etc/fstab.tmp
+  mv /etc/fstab.tmp /etc/fstab
+  echo "UUID=$uuid $mount_point ext4 defaults,nofail 0 2" >> /etc/fstab
+  mountpoint -q "$mount_point" || mount "$mount_point"
+}
+
+configure_dev_state() {
+  local mount_point="$DEV_STATE_MOUNT_PATH"
+
+  mkdir -p \
+    "$mount_point/ws" \
+    "$mount_point/docker" \
+    "$mount_point/.cache/uv" \
+    "$mount_point/.cache/rattler" \
+    "$mount_point/.local/share"
+  chown -R ubuntu:ubuntu "$mount_point"
+
+  # Workspace convenience symlink
+  if [ ! -d "/home/ubuntu/ws" ] || [ -L "/home/ubuntu/ws" ]; then
+    ln -sfn "$mount_point/ws" /home/ubuntu/ws
+    chown -h ubuntu:ubuntu /home/ubuntu/ws
+  fi
+
+  # Move Docker data from root volume to dev-state on fresh volumes
+  systemctl stop docker
+  if [ -d /var/lib/docker ] && [ ! -d "$mount_point/docker/image" ]; then
+    echo "Migrating Docker data to dev-state volume..."
+    rsync -a /var/lib/docker/ "$mount_point/docker/" 2>/dev/null || true
+  fi
+
+  # Update Docker data-root
+  local docker_config="/etc/docker/daemon.json"
+  local docker_root="$mount_point/docker"
+  if [ -f "$docker_config" ]; then
+    python3 -c "
+import json, sys
+with open('$docker_config') as f:
+    cfg = json.load(f)
+cfg['data-root'] = '$docker_root'
+with open('$docker_config', 'w') as f:
+    json.dump(cfg, f, indent=2)
+"
+  else
+    echo "{\"data-root\": \"$docker_root\"}" > "$docker_config"
+  fi
+  systemctl start docker
+
+  # Shell environment for dev-state paths
+  cat > /etc/profile.d/dev-state.sh <<PROFILE
+export XDG_CACHE_HOME="$mount_point/.cache"
+export XDG_DATA_HOME="$mount_point/.local/share"
+export UV_CACHE_DIR="$mount_point/.cache/uv"
+export PIXI_CACHE_DIR="$mount_point/.cache/rattler"
+export RATTLER_CACHE_DIR="$mount_point/.cache/rattler"
+PROFILE
+
+  # Snapshot helper
+  cat > /usr/local/bin/snapshot-dev-state <<'SNAPSCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+
+MOUNT_PATH="$${1:-/work}"
+
+if ! mountpoint -q "$MOUNT_PATH"; then
+  echo "Error: $MOUNT_PATH is not mounted" >&2
+  exit 1
+fi
+
+DEVICE="$(findmnt -no SOURCE "$MOUNT_PATH")"
+VOLUME_ID=""
+for link in /dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_vol*; do
+  [ -L "$link" ] || continue
+  if [ "$(readlink -f "$link")" = "$DEVICE" ]; then
+    raw="$${link##*_}"
+    VOLUME_ID="$${raw:0:3}-$${raw:3}"
+    break
+  fi
+done
+
+if [ -z "$VOLUME_ID" ]; then
+  echo "Error: could not determine volume ID from $DEVICE" >&2
+  exit 1
+fi
+
+echo "Stopping Docker..."
+systemctl stop docker
+
+echo "Syncing filesystem..."
+sync
+
+echo "Creating snapshot of $VOLUME_ID..."
+SNAPSHOT_ID="$(aws ec2 create-snapshot \
+  --volume-id "$VOLUME_ID" \
+  --description "dev-state $(date -Is)" \
+  --tag-specifications "ResourceType=snapshot,Tags=[{Key=Name,Value=dev-state-snapshot},{Key=Source,Value=$VOLUME_ID}]" \
+  --query 'SnapshotId' --output text)"
+
+echo "Waiting for $SNAPSHOT_ID to complete..."
+aws ec2 wait snapshot-completed --snapshot-ids "$SNAPSHOT_ID"
+
+echo "Starting Docker..."
+systemctl start docker
+
+echo "$SNAPSHOT_ID"
+SNAPSCRIPT
+  chmod +x /usr/local/bin/snapshot-dev-state
+}
+
 mkdir -p /mnt/assets /mnt/isaac
 
 configure_ubuntu_password
@@ -57,25 +203,33 @@ PROJECT_PREFIX="$(get_param "$PROJECT_PREFIX_PARAM")"
 WORKSPACE_PATH="$(get_param "$WORKSPACE_PARAM")"
 
 configure_project_sync_aliases() {
-cat >> /home/ubuntu/.bashrc <<'BASHRC'
+cat >> /home/ubuntu/.bashrc <<BASHRC
 _s3_sync_args() {
-  local exclude_file="${WORKSPACE_PATH}/.s3ignore"
+  local exclude_file="$${WORKSPACE_PATH}/.s3ignore"
   local args=()
-  if [[ -f "$exclude_file" ]]; then
+  if [[ -f "\$exclude_file" ]]; then
     while IFS= read -r pattern; do
-      [[ -z "$pattern" || "$pattern" == \#* ]] && continue
-      args+=(--exclude "$pattern")
-    done < "$exclude_file"
+      [[ -z "\$pattern" || "\$pattern" == \#* ]] && continue
+      args+=(--exclude "\$pattern")
+    done < "\$exclude_file"
   fi
-  printf '%s\0' "${args[@]}"
+  printf '%s\0' "\$${args[@]}"
 }
 
-alias s3-pull='mapfile -d "" _args < <(_s3_sync_args) && aws s3 sync "s3://${BUCKET}/${PROJECT_PREFIX}" "${WORKSPACE_PATH}" --delete "${_args[@]}"'
-alias s3-push='mapfile -d "" _args < <(_s3_sync_args) && aws s3 sync "${WORKSPACE_PATH}" "s3://${BUCKET}/${PROJECT_PREFIX}" --delete "${_args[@]}"'
+alias s3-pull='mapfile -d "" _args < <(_s3_sync_args) && aws s3 sync "s3://$${BUCKET}/$${PROJECT_PREFIX}" "$${WORKSPACE_PATH}" --delete "\$${_args[@]}"'
+alias s3-push='mapfile -d "" _args < <(_s3_sync_args) && aws s3 sync "$${WORKSPACE_PATH}" "s3://$${BUCKET}/$${PROJECT_PREFIX}" --delete "\$${_args[@]}"'
 BASHRC
 }
 
 configure_project_sync_aliases
+
+if [ "$DEV_STATE_ENABLED" = "true" ]; then
+  if retry 30 10 mount_dev_state_volume; then
+    configure_dev_state
+  else
+    logger -t robotics "Dev state volume mount failed; skipping dev state configuration"
+  fi
+fi
 
 mkdir -p "$WORKSPACE_PATH"
 chown ubuntu:ubuntu "$WORKSPACE_PATH"

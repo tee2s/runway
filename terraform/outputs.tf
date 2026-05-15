@@ -67,3 +67,23 @@ output "runtime_spot_price" {
   description = "Current spot price (USD/hr) for the runtime instance type and AZ when enabled."
   value       = var.runtime_enabled ? data.aws_ec2_spot_price.runtime[0].spot_price : null
 }
+
+output "dev_state_volume_id" {
+  description = "Dev-state EBS volume ID when enabled and runtime is active."
+  value       = var.dev_state_volume_enabled && var.runtime_enabled ? aws_ebs_volume.dev_state[0].id : null
+}
+
+output "dev_state_device_name" {
+  description = "Device name for the dev-state volume attachment."
+  value       = var.dev_state_volume_enabled && var.runtime_enabled ? "/dev/sdg" : null
+}
+
+output "dev_state_mount_path" {
+  description = "Mount path for the dev-state volume on the instance."
+  value       = var.dev_state_volume_enabled ? var.dev_state_mount_path : null
+}
+
+output "dev_state_snapshot_source" {
+  description = "Snapshot ID used to create the dev-state volume, if any."
+  value       = var.dev_state_volume_enabled && trimspace(var.dev_state_snapshot_id) != "" ? var.dev_state_snapshot_id : null
+}

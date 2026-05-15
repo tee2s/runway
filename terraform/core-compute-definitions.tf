@@ -73,6 +73,36 @@ resource "aws_iam_role_policy" "sim_instance_inline" {
         Effect   = "Allow"
         Action   = "s3:GetObject"
         Resource = "arn:aws:s3:::dcv-license.${var.region}/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "ec2:CreateSnapshot"
+        Resource = "arn:aws:ec2:${var.region}:${data.aws_caller_identity.current.account_id}:volume/*"
+        Condition = {
+          StringEquals = {
+            "aws:ResourceTag/Project" = var.project_name
+          }
+        }
+      },
+      {
+        Effect   = "Allow"
+        Action   = "ec2:CreateSnapshot"
+        Resource = "arn:aws:ec2:${var.region}::snapshot/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "ec2:CreateTags"
+        Resource = "arn:aws:ec2:${var.region}::snapshot/*"
+        Condition = {
+          StringEquals = {
+            "ec2:CreateAction" = "CreateSnapshot"
+          }
+        }
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ec2:DescribeVolumes", "ec2:DescribeSnapshots"]
+        Resource = "*"
       }
     ]
   })
@@ -94,6 +124,9 @@ resource "aws_launch_template" "gazebo" {
     workspace_param            = local.base_param_path.workspace_path
     bucket_param               = local.base_param_path.bucket_name
     ubuntu_password_hash_param = var.ubuntu_password_hash_parameter_name
+    dev_state_enabled          = var.dev_state_volume_enabled
+    dev_state_mount_path       = var.dev_state_mount_path
+    dev_state_volume_id_param  = local.base_param_path.dev_state_volume_id
   }))
 
   iam_instance_profile {
@@ -147,6 +180,9 @@ resource "aws_launch_template" "isaac" {
     workspace_param            = local.base_param_path.workspace_path
     bucket_param               = local.base_param_path.bucket_name
     ubuntu_password_hash_param = var.ubuntu_password_hash_parameter_name
+    dev_state_enabled          = var.dev_state_volume_enabled
+    dev_state_mount_path       = var.dev_state_mount_path
+    dev_state_volume_id_param  = local.base_param_path.dev_state_volume_id
   }))
 
   iam_instance_profile {

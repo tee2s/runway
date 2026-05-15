@@ -100,3 +100,38 @@ resource "aws_volume_attachment" "isaac_runtime" {
   volume_id   = aws_ebs_volume.isaac_runtime[0].id
   instance_id = local.runtime_instance_id
 }
+
+resource "aws_ebs_volume" "dev_state" {
+  count = var.dev_state_volume_enabled && var.runtime_enabled ? 1 : 0
+
+  availability_zone = local.runtime_availability_zone
+  snapshot_id       = trimspace(var.dev_state_snapshot_id) != "" ? var.dev_state_snapshot_id : null
+  size              = trimspace(var.dev_state_snapshot_id) == "" ? var.dev_state_volume_size_gib : null
+  type              = var.dev_state_volume_type
+  encrypted         = true
+
+  tags = merge(local.common_tags, {
+    Name = "${var.project_name}-dev-state"
+    Role = "dev-state"
+  })
+}
+
+resource "aws_volume_attachment" "dev_state" {
+  count = var.dev_state_volume_enabled && var.runtime_enabled ? 1 : 0
+
+  device_name  = "/dev/sdg"
+  volume_id    = aws_ebs_volume.dev_state[0].id
+  instance_id  = local.runtime_instance_id
+  force_detach = true
+}
+
+resource "aws_ssm_parameter" "dev_state_volume_id" {
+  count = var.dev_state_volume_enabled && var.runtime_enabled ? 1 : 0
+
+  name      = local.base_param_path.dev_state_volume_id
+  type      = "String"
+  value     = aws_ebs_volume.dev_state[0].id
+  overwrite = true
+
+  tags = local.common_tags
+}
