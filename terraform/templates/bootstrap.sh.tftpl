@@ -101,7 +101,10 @@ configure_dev_state() {
     "$mount_point/docker" \
     "$mount_point/.cache/uv" \
     "$mount_point/.cache/rattler" \
-    "$mount_point/.local/share"
+    "$mount_point/.local/share/uv/tools" \
+    "$mount_point/.local/share/uv/python" \
+    "$mount_point/.local/bin" \
+    "$mount_point/.config"
   chown -R ubuntu:ubuntu "$mount_point"
 
   # Workspace convenience symlink
@@ -138,7 +141,14 @@ with open('$docker_config', 'w') as f:
   cat > /etc/profile.d/dev-state.sh <<PROFILE
 export XDG_CACHE_HOME="$mount_point/.cache"
 export XDG_DATA_HOME="$mount_point/.local/share"
+export XDG_CONFIG_HOME="$mount_point/.config"
+export XDG_BIN_HOME="$mount_point/.local/bin"
+export PATH="$mount_point/.local/bin:\$PATH"
 export UV_CACHE_DIR="$mount_point/.cache/uv"
+export UV_TOOL_DIR="$mount_point/.local/share/uv/tools"
+export UV_TOOL_BIN_DIR="$mount_point/.local/bin"
+export UV_PYTHON_INSTALL_DIR="$mount_point/.local/share/uv/python"
+export UV_PYTHON_BIN_DIR="$mount_point/.local/bin"
 export PIXI_CACHE_DIR="$mount_point/.cache/rattler"
 export RATTLER_CACHE_DIR="$mount_point/.cache/rattler"
 PROFILE
