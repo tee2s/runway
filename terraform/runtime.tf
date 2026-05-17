@@ -101,6 +101,33 @@ resource "aws_volume_attachment" "isaac_runtime" {
   instance_id = local.runtime_instance_id
 }
 
+data "aws_ebs_volumes" "dev_state" {
+  count = var.dev_state_volume_enabled ? 1 : 0
+
+  filter {
+    name   = "tag:Role"
+    values = ["dev-state"]
+  }
+  filter {
+    name   = "tag:Project"
+    values = [var.project_name]
+  }
+  filter {
+    name   = "status"
+    values = ["available", "in-use"]
+  }
+}
+
+data "aws_ebs_volume" "dev_state_existing" {
+  count = var.dev_state_volume_enabled && length(try(data.aws_ebs_volumes.dev_state[0].ids, [])) > 0 ? 1 : 0
+
+  most_recent = true
+  filter {
+    name   = "volume-id"
+    values = [tolist(data.aws_ebs_volumes.dev_state[0].ids)[0]]
+  }
+}
+
 data "aws_ssm_parameter" "dev_state_snapshot_id" {
   count = var.dev_state_volume_enabled ? 1 : 0
   name  = local.base_param_path.dev_state_snapshot_id
@@ -115,9 +142,11 @@ locals {
 resource "aws_ebs_volume" "dev_state" {
   count = var.dev_state_volume_enabled && (var.persist_dev_state_volume || var.runtime_enabled) ? 1 : 0
 
-  # Persistent volumes use the first subnet's AZ (matching local.dev_state_persistent_az).
-  # Ephemeral volumes follow the fleet's chosen AZ via local.runtime_availability_zone.
   availability_zone = var.persist_dev_state_volume ? aws_subnet.public["0"].availability_zone : local.runtime_availability_zone
+
+  lifecycle {
+    ignore_changes = [availability_zone]
+  }
   snapshot_id       = local.dev_state_current_snapshot_id != "" ? local.dev_state_current_snapshot_id : null
   size              = local.dev_state_current_snapshot_id == "" ? var.dev_state_volume_size_gib : null
   type              = var.dev_state_volume_type
