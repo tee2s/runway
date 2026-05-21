@@ -1,6 +1,14 @@
-# Robotics Development Cloud Infrastructure
+<p align="center">
+  <img src="./images/logo_runway.png" alt="Runway logo" width="128">
+</p>
 
-Terraform + Packer setup for running GPU workstation setup for robotics simulation environments on AWS.
+<h1 align="center">Robotics Development Cloud Infrastructure</h1>
+
+<p align="center">
+  Terraform + Packer setup for running GPU workstation setup for robotics simulation environments on AWS.
+</p>
+
+<br>
 
 Supports two runtime modes:
 
