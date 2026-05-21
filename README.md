@@ -2,10 +2,14 @@
   <img src="./images/logo_runway.png" alt="Runway logo" width="128">
 </p>
 
-<h1 align="center">Robotics Development Cloud Infrastructure</h1>
+<h1 align="center">Runway</h1>
 
 <p align="center">
-  Terraform + Packer setup for running GPU workstation setup for robotics simulation environments on AWS.
+  <strong>Cloud robotics dev, ready for takeoff.</strong>
+</p>
+
+<p align="center">
+  Terraform + Packer for GPU robotics simulation workstations on AWS.
 </p>
 
 <br>
